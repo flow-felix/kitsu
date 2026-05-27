@@ -41,7 +41,7 @@ Each Flow change must be a discrete `flow/<feature>` branch so it can be reverte
 ## 5. Production paths (exact)
 | Thing | Path |
 |---|---|
-| Source repo | `/home/felix-eyal/flow-dev/kitsu` |
+| Source repo | `/home/felix-eyal/flow-dev/Kitsu-Mods/kitsu` |
 | Deployed build (served) | `/opt/kitsu/dist` (dist-only, no git, owned `zou:zou`) |
 | nginx site | `/etc/nginx/sites-available/zou` → enabled at `/etc/nginx/sites-enabled/zou` (`root /opt/kitsu/dist`; proxies `/api` → `127.0.0.1:5000`) |
 | Domain | `https://kitsu.flowanimation.com` |
@@ -51,7 +51,7 @@ There is **no systemd unit** for the frontend — it is static files served by n
 
 ## 6. Build steps
 ```bash
-cd /home/felix-eyal/flow-dev/kitsu
+cd /home/felix-eyal/flow-dev/Kitsu-Mods/kitsu
 git checkout flow/main          # always build from the Flow integration branch
 npm install                     # node version per .nvmrc / package.json engines
 npm run build                   # outputs to ./dist
