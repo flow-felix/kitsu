@@ -107,6 +107,7 @@
           ref="timesheet-list"
           :tasks="loggableTodos"
           :done-tasks="loggableDoneTasks"
+          :other-tasks="otherLoggedTasks"
           :is-loading="loading.timesheets || isTodosLoading"
           :is-error="isTodosLoadingError"
           :days-off="daysOff"
@@ -148,6 +149,7 @@ import { searchMixin } from '@/components/mixins/search'
 
 import { sortTaskStatuses } from '@/lib/sorting'
 import { parseDate } from '@/lib/time'
+import { populateTask } from '@/lib/models'
 
 import Combobox from '@/components/widgets/Combobox.vue'
 import ComboboxProduction from '@/components/widgets/ComboboxProduction.vue'
@@ -196,6 +198,7 @@ export default {
         timesheets: false,
         savingSearch: false
       },
+      otherLoggedTasks: [],
       productionId: undefined,
       selectedDate: moment().format('YYYY-MM-DD'),
       sortOptions: [
@@ -389,6 +392,7 @@ export default {
       'loadAggregatedPersonDaysOff',
       'loadOpenProductions',
       'loadUserTimeSpents',
+      'loadTask',
       'loadTodos',
       'loadDoneTasks',
       'removeTodoSearch',
@@ -426,7 +430,58 @@ export default {
     async loadTimeSpents() {
       this.isTasksLoading = true
       await this.loadUserTimeSpents({ date: this.selectedDate })
+      await this.loadOtherLoggedTasks()
       this.isTasksLoading = false
+    },
+
+    // Time spent rows exist per (person, task, date) regardless of current
+    // task assignment. The timesheet table only renders rows for tasks the
+    // artist is currently assigned to (loggableTodos / loggableDoneTasks), so
+    // hours logged on a task the artist was later unassigned from would vanish
+    // from their own view even though the data is intact (and still visible in
+    // the manager's production timesheet). Here we surface those orphaned rows
+    // as a read-only section so the artist always sees their own history.
+    async loadOtherLoggedTasks() {
+      const assignedIds = new Set(
+        [...this.loggableTodos, ...this.loggableDoneTasks].map(task => task.id)
+      )
+      const orphanIds = Object.keys(this.timeSpentMap).filter(
+        taskId => !assignedIds.has(taskId)
+      )
+      const tasks = []
+      for (const taskId of orphanIds) {
+        try {
+          const task = await this.loadTask({ taskId })
+          tasks.push(this.normalizeLoggedTask(task))
+        } catch {
+          // Task deleted or no longer readable: skip it rather than break the
+          // whole timesheet view.
+        }
+      }
+      this.otherLoggedTasks = this.productionId
+        ? tasks.filter(task => task.project_id === this.productionId)
+        : tasks
+    },
+
+    // The full task endpoint returns nested objects; flatten them to the shape
+    // the timesheet row expects, then let populateTask build full_entity_name
+    // and entity_path.
+    normalizeLoggedTask(task) {
+      const flat = {
+        id: task.id,
+        project_id: task.project_id,
+        task_type_id: task.task_type_id,
+        task_type_name: task.task_type?.name,
+        task_type_color: task.task_type?.color,
+        entity_id: task.entity_id,
+        entity_name: task.entity?.name,
+        entity_type_name: task.entity_type?.name,
+        entity_preview_file_id: task.entity?.preview_file_id || '',
+        sequence_name: task.sequence?.name,
+        episode_name: task.episode?.name
+      }
+      populateTask(flat)
+      return flat
     },
 
     resizeHeaders() {

@@ -168,6 +168,64 @@
             />
           </tr>
         </tbody>
+        <tbody
+          class="datatable-body"
+          v-if="!isLoading && otherTasks.length > 0"
+        >
+          <tr class="datatable-type-header">
+            <th colspan="4" scope="rowgroup">
+              <div class="datatable-row-header flexrow">
+                <page-subtitle :text="$t('timesheets.unassigned_tasks')" />
+                <info-question-mark
+                  :text="$t('timesheets.unassigned_hint')"
+                />
+              </div>
+            </th>
+          </tr>
+          <tr
+            class="datatable-row unassigned-row"
+            :key="`other-${task.id}-${i}`"
+            v-for="(task, i) in otherTasks"
+          >
+            <th
+              class="production datatable-row-header datatable-row-header--nobd"
+              scope="row"
+            >
+              <production-name-cell
+                :entry="productionMap.get(task.project_id)"
+                :only-avatar="true"
+              />
+            </th>
+            <task-type-cell
+              class="type datatable-row-header datatable-row-header--nobd"
+              :production-id="task.project_id"
+              :task-type="{
+                id: task.task_type_id,
+                name: task.task_type_name,
+                color: task.task_type_color,
+                for_entity: ['Shot', 'Edit'].includes(task.entity_type_name)
+                  ? task.entity_type_name
+                  : 'Asset'
+              }"
+              :style="{ left: colTypePosX }"
+            />
+            <th
+              class="name datatable-row-header"
+              :style="{ left: colNamePosX }"
+            >
+              <router-link :to="entityPath(task)">
+                {{ task.full_entity_name }}
+              </router-link>
+            </th>
+            <td class="time-spent read-only-time">
+              {{
+                timeSpentMap[task.id]
+                  ? (timeSpentMap[task.id].duration / 60).toFixed(2)
+                  : '0.00'
+              }}
+            </td>
+          </tr>
+        </tbody>
       </table>
     </div>
 
@@ -283,6 +341,10 @@ export default {
     hideDayOff: {
       default: true,
       type: Boolean
+    },
+    otherTasks: {
+      default: () => [],
+      type: Array
     }
   },
 

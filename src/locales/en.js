@@ -1953,6 +1953,9 @@ export default {
     off: 'Off',
     time_spents: 'Time Spent (hours)',
     title: 'Timesheets',
+    unassigned_tasks: 'Other logged tasks (view only)',
+    unassigned_hint:
+      'Time you logged on tasks you are no longer assigned to. These hours are saved and visible to your manager, but can no longer be edited here.',
     unit: 'Unit',
     year: 'Year'
   },
