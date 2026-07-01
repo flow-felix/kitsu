@@ -34,9 +34,12 @@ Order of preference:
    ```
 Each Flow change must be a discrete `flow/<feature>` branch so it can be reverted or rebased independently.
 
-### Current Flow changes in this repo (as of this writing — UNCOMMITTED, must be committed)
-- `src/components/pages/Todos.vue`, `src/components/lists/TimesheetList.vue`, `src/locales/en.js`
-  — read-only "Other logged tasks" section so artists see hours logged on tasks they're no longer assigned to. Risk: **medium** (edits upstream files; see Zou doc + the timesheet bug note). Belongs on `flow/timesheet-orphan-hours`.
+### Current Flow changes in this repo
+- **`timesheet-orphan-hours`** — read-only "Other logged tasks" section so artists
+  see hours logged on tasks they're no longer assigned to (`Todos.vue`,
+  `TimesheetList.vue`, `en.js`). **Committed** on `flow/main` (branch
+  `flow/timesheet-orphan-hours`, deployed 2026-05-27); survived the 1.0.48 upstream
+  merge on 2026-07-01. Risk: medium (edits upstream files).
 
 ## 5. Production paths (exact)
 | Thing | Path |
@@ -50,10 +53,17 @@ Each Flow change must be a discrete `flow/<feature>` branch so it can be reverte
 There is **no systemd unit** for the frontend — it is static files served by nginx. Restarting Zou does not affect it.
 
 ## 6. Build steps
+> **Node version:** Kitsu 1.0.48 requires **Node ≥ 22.22.1** (`package.json`
+> `engines`; Vite 8 toolchain). The prod box's system `node` is **v20** — building
+> with it fails/produces a bad bundle. Use a Node 22 without touching the system:
+> download `node-v22.x-linux-x64` to a temp dir and prefix `PATH` for the build
+> only (`export PATH=/path/to/node-v22.../bin:$PATH`), or use nvm/fnm if installed.
+> The 2026-07-01 1.0.48 build used a throwaway Node v22.23.1 this way.
+
 ```bash
 cd /home/felix-eyal/flow-dev/Kitsu-Mods/kitsu
 git checkout flow/main          # always build from the Flow integration branch
-npm install                     # node version per .nvmrc / package.json engines
+npm ci                          # clean install from package-lock
 npm run build                   # outputs to ./dist
 # (optional) npm run lint && npm run test:unit
 ```
