@@ -7,7 +7,7 @@
             <th scope="col" class="name">
               {{ $t('studios.fields.name') }}
             </th>
-            <th scope="col">{{ $t('studios.fields.color') }}</th>
+            <th scope="col" class="color">{{ $t('studios.fields.color') }}</th>
             <th scope="col" class="actions"></th>
           </tr>
         </thead>
@@ -29,29 +29,30 @@
         </tbody>
       </table>
     </div>
-    <table-info :is-loading="isLoading" :is-error="isError"> </table-info>
-    <p class="has-text-centered nb-asset-types">
-      {{ entries.length }} {{ $tc('studios.number', entries.length) }}
+    <table-info
+      :is-loading="isLoading"
+      :is-error="isError"
+      :cells="1"
+      :with-thumbnail="false"
+    />
+    <p class="has-text-centered nb-studios">
+      {{ entries.length }}
+      {{ $t('studios.number', entries.length, { n: entries.length }) }}
     </p>
   </div>
 </template>
 
-<script>
+<script setup>
 import RowActionsCell from '@/components/cells/RowActionsCell.vue'
 import TableInfo from '@/components/widgets/TableInfo.vue'
 
-export default {
-  name: 'studio-list',
+defineProps({
+  entries: { type: Array, default: () => [] },
+  isError: { type: Boolean, default: false },
+  isLoading: { type: Boolean, default: false }
+})
 
-  props: ['entries', 'isLoading', 'isError'],
-
-  components: {
-    RowActionsCell,
-    TableInfo
-  },
-
-  emits: ['delete-clicked', 'edit-clicked']
-}
+defineEmits(['delete-clicked', 'edit-clicked'])
 </script>
 
 <style lang="scss" scoped>
@@ -61,20 +62,31 @@ export default {
 }
 
 .name {
-  width: 300px;
+  min-width: 200px;
   padding: 1em;
 }
 
 .color {
-  width: 20px;
-  height: 20px;
   text-align: center;
+  width: 60px;
 
   span {
     display: inline-block;
     width: 20px;
     height: 20px;
     border-radius: 2px;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .name {
+    min-width: auto;
+    padding: 0.5em;
+  }
+
+  .datatable-body td,
+  .datatable-head th {
+    padding: 0.5em;
   }
 }
 </style>

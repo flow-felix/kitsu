@@ -1,6 +1,6 @@
 <template>
   <article
-    ref="wrapper"
+    ref="wrapperRef"
     @drop="onDrop"
     @dragover="onDragover"
     @dragleave="onDragleave"
@@ -84,7 +84,7 @@
           </template>
         </template>
         <textarea
-          ref="comment-textarea"
+          ref="commentTextareaRef"
           class="textarea flexrow-item"
           :disabled="isLoading"
           :placeholder="$t('comments.add_comment')"
@@ -93,7 +93,7 @@
             runAddComment(
               text,
               attachments,
-              checklist,
+              checklistItems,
               task_status_id,
               nextRevision,
               link
@@ -103,7 +103,7 @@
             runAddComment(
               text,
               attachments,
-              checklist,
+              checklistItems,
               task_status_id,
               nextRevision,
               link
@@ -123,7 +123,7 @@
         </label>
         <input
           id="input-link"
-          ref="input-link"
+          ref="inputLinkRef"
           class="input flexrow-item filler preview-link"
           placeholder="https://..."
           type="url"
@@ -138,14 +138,14 @@
       </div>
       <div class="post-area">
         <checklist
-          :checklist="checklist"
+          :checklist="checklistItems"
           :frame="frame + 1"
           :revision="revision"
           :is-movie-preview="isMovie"
           @add-item="onAddChecklistItem"
           @insert-item="onInsertChecklistItem"
           @remove-task="removeTask"
-          v-if="checklist.length > 0"
+          v-if="checklistItems.length > 0"
         />
 
         <div v-if="mode === 'publish'" class="post-area mt1">
@@ -209,14 +209,25 @@
         <div class="attachment-title" v-if="attachments.length > 0">
           {{ $t('comments.attachments') }}
         </div>
-        <div
+        <template
           :key="'attachment-' + index"
-          class="attachment-file"
-          v-for="(attach, index) in attachments"
+          v-for="(attach, index) in sortedAttachments"
         >
-          {{ shortenText(attach.get('file').name, 40) }}
-          <span @click="removeAttachment(attach)">x</span>
-        </div>
+          <div
+            class="attachment-image"
+            :title="attach.get('file').name"
+            v-if="isImageAttachment(attach)"
+          >
+            <img :src="attachmentURL(attach)" :alt="attach.get('file').name" />
+            <span class="attachment-remove" @click="removeAttachment(attach)">
+              x
+            </span>
+          </div>
+          <div class="attachment-file" :title="attach.get('file').name" v-else>
+            {{ shortenText(attach.get('file').name, 70) }}
+            <span @click="removeAttachment(attach)">x</span>
+          </div>
+        </template>
 
         <div class="flexrow button-row mt1">
           <emoji-button @select="onSelectEmoji" v-if="mode === 'status'" />
@@ -231,7 +242,7 @@
           />
           <button-simple
             :class="{
-              active: checklist.length !== 0
+              active: checklistItems.length !== 0
             }"
             icon="list"
             :title="$t('comments.add_checklist')"
@@ -256,6 +267,21 @@
             @click="toggleLinkField"
             v-if="mode === 'publish'"
           />
+          <button
+            type="button"
+            class="button for-client-toggle"
+            :class="{ active: forClient }"
+            :title="
+              forClient
+                ? $t('comments.for_client_on')
+                : $t('comments.for_client_off')
+            "
+            @click="forClient = !forClient"
+            v-if="isCurrentUserManager"
+          >
+            <eye-icon class="icon" v-if="forClient" />
+            <eye-off-icon class="icon" v-else />
+          </button>
           <div class="filler"></div>
           <combobox-status
             class="status-selector"
@@ -282,7 +308,7 @@
               runAddComment(
                 text,
                 attachments,
-                checklist,
+                checklistItems,
                 task_status_id,
                 nextRevision,
                 link
@@ -308,17 +334,22 @@
     </div>
 
     <add-attachment-modal
-      ref="add-attachment-modal"
+      ref="addAttachmentModalRef"
       :active="modals.addCommentAttachment"
       :is-loading="loading.addCommentAttachment"
       :is-error="errors.addCommentAttachment"
       :is-movie="isMovie"
+      :is-picture="isPicture"
       :title="`${task.entity_name} / ${
         taskTypeMap.get(task.task_type_id).name
       }`"
+      :name-prefix="attachmentNamePrefix"
       @cancel="onCloseCommentAttachment"
       @confirm="addCommentAttachment"
       @add-snapshots="$emit('annotation-snapshots-requested')"
+      @add-snapshots-with-label="
+        $emit('annotation-snapshots-with-label-requested')
+      "
     />
     <confirm-modal
       :active="modals.confirmFeedbackPublish"
@@ -331,7 +362,7 @@
           runAddComment(
             text,
             attachments,
-            checklist,
+            checklistItems,
             task_status_id,
             nextRevision,
             link,
@@ -343,9 +374,22 @@
   </article>
 </template>
 
-<script>
+<script setup>
+import {
+  computed,
+  inject,
+  nextTick,
+  onBeforeMount,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch
+} from 'vue'
+import { useRoute } from 'vue-router'
+import { useStore } from 'vuex'
 import AtTa from 'vue-at/dist/vue-at-textarea'
-import { mapGetters } from 'vuex'
+import { EyeIcon, EyeOffIcon } from 'lucide-vue-next'
 
 import drafts from '@/lib/drafts'
 import { remove } from '@/lib/models'
@@ -353,6 +397,8 @@ import { getDownloadAttachmentPath } from '@/lib/path'
 import { replaceTimeWithTimecode } from '@/lib/render'
 import preferences from '@/lib/preferences'
 import strings from '@/lib/string'
+
+import { useAtMentionsMembers } from '@/composables/atMentions'
 
 import AddAttachmentModal from '@/components/modals/AddAttachmentModal.vue'
 import ButtonSimple from '@/components/widgets/ButtonSimple.vue'
@@ -366,641 +412,584 @@ import ToggleButton from '@/components/widgets/ToggleButton.vue'
 
 const REVISION_NUMBER_REGEX = /v(\d+)/gi
 
-export default {
-  name: 'add-comment',
-
-  components: {
-    AtTa,
-    AddAttachmentModal,
-    ButtonSimple,
-    Checklist,
-    ConfirmModal,
-    ComboboxStatus,
-    EmojiButton,
-    PeopleAvatar,
-    TaskTypeName,
-    ToggleButton
+const props = defineProps({
+  frame: {
+    type: Number,
+    default: 0
   },
-
-  emits: [
-    'add-comment',
-    'add-preview',
-    'annotation-snapshots-requested',
-    'clear-files',
-    'file-drop',
-    'remove-preview'
-  ],
-
-  inject: ['draftComment'],
-
-  data() {
-    return {
-      isFrameAddition: false,
-      membersForAts: { '@': [], '#': [] },
-      isDragging: false,
-      errors: {
-        addCommentAttachment: false
-      },
-      loading: {
-        addCommentAttachment: false
-      },
-      modals: {
-        addCommentAttachment: false,
-        confirmFeedbackPublish: false
-      }
-    }
+  isError: {
+    type: Boolean,
+    default: null
   },
-
-  props: {
-    frame: {
-      type: Number,
-      default: 0
-    },
-    isError: {
-      type: Boolean,
-      default: null
-    },
-    isMaxRetakesError: {
-      type: Boolean,
-      default: null
-    },
-    isMovie: {
-      type: Boolean,
-      default: false
-    },
-    isLoading: {
-      type: Boolean,
-      default: null
-    },
-    task: {
-      type: Object,
-      default: () => {}
-    },
-    taskStatus: {
-      type: Array,
-      default: () => []
-    },
-    taskTypes: {
-      type: Array,
-      default: () => []
-    },
-    team: {
-      type: Array,
-      default: () => []
-    },
-    fps: {
-      type: Number,
-      default: 25
-    },
-    revision: {
-      type: Number,
-      default: 1
-    },
-    time: {
-      type: Number,
-      default: 0
-    },
-    previewForms: {
-      type: Array,
-      default: () => []
-    }
+  isMaxRetakesError: {
+    type: Boolean,
+    default: null
   },
-
-  beforeMount() {
-    if (!this.attachments) {
-      this.attachments = []
-    }
-    if (!this.checklist) {
-      this.checklist = []
-    }
+  isMovie: {
+    type: Boolean,
+    default: false
   },
+  isPicture: {
+    type: Boolean,
+    default: false
+  },
+  isLoading: {
+    type: Boolean,
+    default: null
+  },
+  task: {
+    type: Object,
+    default: () => {}
+  },
+  taskStatus: {
+    type: Array,
+    default: () => []
+  },
+  taskTypes: {
+    type: Array,
+    default: () => []
+  },
+  team: {
+    type: Array,
+    default: () => []
+  },
+  fps: {
+    type: Number,
+    default: 25
+  },
+  revision: {
+    type: Number,
+    default: 1
+  },
+  time: {
+    type: Number,
+    default: 0
+  },
+  previewForms: {
+    type: Array,
+    default: () => []
+  }
+})
 
-  mounted() {
-    if (!this.isCurrentUserClient) {
-      this.isFrameAddition = false
-    } else {
-      this.isFrameAddition = preferences.getBoolPreference(
-        'comments:add-frame-when-posting',
-        false
-      )
-    }
-    const production = this.productionMap.get(this.task.project_id)
-    this.mode =
-      production?.is_publish_default_for_artists && this.isCurrentUserArtist
-        ? 'publish'
-        : 'status'
+const emit = defineEmits([
+  'add-comment',
+  'add-preview',
+  'annotation-snapshots-requested',
+  'annotation-snapshots-with-label-requested',
+  'clear-files',
+  'file-drop',
+  'remove-preview'
+])
 
-    this.$nextTick(() => {
-      ;[
-        'drag',
-        'dragstart',
-        'dragend',
-        'dragover',
-        'dragenter',
-        'dragleave',
-        'drop'
-      ].forEach(evt => {
-        if (this.$refs.wrapper) {
-          this.$refs.wrapper.addEventListener(evt, e => {
-            e.preventDefault()
-            e.stopPropagation()
-          })
-        }
-      })
+const store = useStore()
+const route = useRoute()
+const draftComment = inject('draftComment')
+
+const wrapperRef = ref(null)
+const commentTextareaRef = ref(null)
+const inputLinkRef = ref(null)
+const addAttachmentModalRef = ref(null)
+
+const { membersForAts, atOptionsFilter } = useAtMentionsMembers(
+  () => props.team,
+  () => props.taskTypes
+)
+
+const isFrameAddition = ref(false)
+const isDragging = ref(false)
+const errors = reactive({
+  addCommentAttachment: false
+})
+const loading = reactive({
+  addCommentAttachment: false
+})
+const modals = reactive({
+  addCommentAttachment: false,
+  confirmFeedbackPublish: false
+})
+
+const isCurrentUserArtist = computed(() => store.getters.isCurrentUserArtist)
+const isCurrentUserClient = computed(() => store.getters.isCurrentUserClient)
+const isCurrentUserManager = computed(() => store.getters.isCurrentUserManager)
+const forClient = ref(false)
+const productionMap = computed(() => store.getters.productionMap)
+const taskStatusForCurrentUser = computed(
+  () => store.getters.taskStatusForCurrentUser
+)
+const taskStatusMap = computed(() => store.getters.taskStatusMap)
+const taskTypeMap = computed(() => store.getters.taskTypeMap)
+const uploadProgress = computed(() => store.getters.uploadProgress)
+
+const attachmentNamePrefix = computed(() =>
+  strings.attachmentNamePrefix(
+    props.task?.entity_name,
+    taskTypeMap.value.get(props.task?.task_type_id)?.name
+  )
+)
+
+const attachments = computed({
+  get: () => draftComment.attachments,
+  set: value => {
+    draftComment.attachments = value
+  }
+})
+
+const isImageAttachment = form => form.get('file').type.startsWith('image')
+
+const attachmentURL = form => URL.createObjectURL(form.get('file'))
+
+// Show non-image attachments first, image thumbnails last, so the
+// preview wall doesn't push lighter rows out of sight.
+const sortedAttachments = computed(() => {
+  const list = attachments.value || []
+  return [
+    ...list.filter(form => !isImageAttachment(form)),
+    ...list.filter(form => isImageAttachment(form))
+  ]
+})
+
+const checklistItems = computed({
+  get: () => draftComment.checklist,
+  set: value => {
+    draftComment.checklist = value
+    saveDraft()
+  }
+})
+
+const link = computed({
+  get: () => draftComment.link,
+  set: value => {
+    draftComment.link = value
+  }
+})
+
+const mode = computed({
+  get: () => draftComment.mode,
+  set: value => {
+    draftComment.mode = value
+  }
+})
+
+const nextRevision = computed({
+  get: () => draftComment.nextRevision,
+  set: value => {
+    draftComment.nextRevision = value
+  }
+})
+
+const showCommentArea = computed({
+  get: () => draftComment.showCommentArea,
+  set: value => {
+    draftComment.showCommentArea = value
+  }
+})
+
+const showLinkField = computed({
+  get: () => draftComment.showLinkField,
+  set: value => {
+    draftComment.showLinkField = value
+  }
+})
+
+const task_status_id = computed({
+  get: () => draftComment.task_status_id,
+  set: value => {
+    draftComment.task_status_id = value
+  }
+})
+
+const text = computed({
+  get: () => draftComment.text,
+  set: value => {
+    draftComment.text = value
+    saveDraft()
+  }
+})
+
+const saveDraft = () => {
+  drafts.setTaskDraft(props.task.id, {
+    text: draftComment.text,
+    checklist: draftComment.checklist
+  })
+}
+
+// Checklist items are mutated in place (push/splice), so the computed
+// setter doesn't fire; watch the array deeply to persist those edits.
+watch(() => draftComment.checklist, saveDraft, { deep: true })
+
+const getAttachmentModal = () => {
+  return addAttachmentModalRef.value
+}
+
+const isConcept = computed(() => {
+  return route.path.includes('concept')
+})
+
+const isValidForm = computed(() => {
+  return Boolean(
+    mode.value === 'status' ||
+    (mode.value === 'publish' &&
+      props.previewForms.length &&
+      (nextRevision.value === undefined ||
+        nextRevision.value > props.revision) &&
+      (!showLinkField.value ||
+        !link.value ||
+        inputLinkRef.value?.checkValidity()))
+  )
+})
+
+const shortenText = strings.shortenText
+
+const toggleLinkField = (reset = false) => {
+  showLinkField.value = !showLinkField.value
+  if (showLinkField.value) {
+    nextTick(() => {
+      inputLinkRef.value?.focus()
     })
-    window.addEventListener('paste', this.onPaste, false)
-  },
-
-  beforeUnmount() {
-    window.removeEventListener('paste', this.onPaste, false)
-  },
-
-  computed: {
-    ...mapGetters([
-      'departmentMap',
-      'isCurrentUserArtist',
-      'isCurrentUserClient',
-      'productionDepartmentIds',
-      'productionMap',
-      'taskStatusForCurrentUser',
-      'taskStatusMap',
-      'taskTypeMap',
-      'uploadProgress'
-    ]),
-
-    attachments: {
-      get() {
-        return this.draftComment.attachments
-      },
-      set(value) {
-        this.draftComment.attachments = value
-      }
-    },
-
-    checklist: {
-      get() {
-        return this.draftComment.checklist
-      },
-      set(value) {
-        this.draftComment.checklist = value
-      }
-    },
-
-    link: {
-      get() {
-        return this.draftComment.link
-      },
-      set(value) {
-        this.draftComment.link = value
-      }
-    },
-
-    mode: {
-      get() {
-        return this.draftComment.mode
-      },
-      set(value) {
-        this.draftComment.mode = value
-      }
-    },
-
-    nextRevision: {
-      get() {
-        return this.draftComment.nextRevision
-      },
-      set(value) {
-        this.draftComment.nextRevision = value
-      }
-    },
-
-    showCommentArea: {
-      get() {
-        return this.draftComment.showCommentArea
-      },
-      set(value) {
-        this.draftComment.showCommentArea = value
-      }
-    },
-
-    showLinkField: {
-      get() {
-        return this.draftComment.showLinkField
-      },
-      set(value) {
-        this.draftComment.showLinkField = value
-      }
-    },
-
-    task_status_id: {
-      get() {
-        return this.draftComment.task_status_id
-      },
-      set(value) {
-        this.draftComment.task_status_id = value
-      }
-    },
-
-    text: {
-      get() {
-        return this.draftComment.text
-      },
-      set(value) {
-        this.draftComment.text = value
-        drafts.setTaskDraft(this.task.id, this.text)
-      }
-    },
-
-    attachmentModal() {
-      return this.$refs['add-attachment-modal']
-    },
-
-    isConcept() {
-      return this.$route.path.includes('concept')
-    },
-
-    isValidForm() {
-      return Boolean(
-        this.mode === 'status' ||
-        (this.mode === 'publish' &&
-          this.previewForms.length &&
-          (this.nextRevision === undefined ||
-            this.nextRevision > this.revision) &&
-          (!this.showLinkField ||
-            !this.link ||
-            this.$refs['input-link']?.checkValidity()))
-      )
-    }
-  },
-
-  methods: {
-    shortenText: strings.shortenText,
-
-    toggleLinkField(reset = false) {
-      this.showLinkField = !this.showLinkField
-      if (this.showLinkField) {
-        this.$nextTick(() => {
-          this.$refs['input-link']?.focus()
-        })
-      }
-      if (reset) {
-        this.link = null
-      }
-    },
-
-    runAddComment(
-      text,
-      attachments,
-      checklist,
-      taskStatusId,
-      revision,
-      link,
-      force = false
-    ) {
-      if (!this.isValidForm) {
-        return
-      }
-      const taskStatus = this.taskStatusMap.get(this.task_status_id)
-      if (
-        taskStatus.is_feedback_request &&
-        this.previewForms.length === 0 &&
-        !force
-      ) {
-        this.modals.confirmFeedbackPublish = true
-        return
-      }
-
-      if (this.isFrameAddition) {
-        text = '@frame \n\n' + text
-        text = replaceTimeWithTimecode(
-          text,
-          this.revision,
-          this.frame + 1,
-          this.fps
-        )
-      }
-
-      this.$store.commit('CLEAR_UPLOAD_PROGRESS')
-      if (this.mode === 'publish') {
-        if (!this.showCommentArea) text = ''
-        attachments = []
-        checklist = []
-      } else {
-        checklist = checklist.filter(item => item.text)
-      }
-
-      revision = Number(revision)
-      if (isNaN(revision) || revision < 1) {
-        revision = undefined
-      }
-
-      if (!this.showLinkField) {
-        link = null
-      }
-
-      this.$emit(
-        'add-comment',
-        text,
-        attachments,
-        checklist,
-        taskStatusId,
-        revision,
-        link
-      )
-    },
-
-    reset() {
-      this.text = ''
-      this.link = null
-      this.attachments = []
-      this.checklist = []
-      this.nextRevision = undefined
-    },
-
-    focus() {
-      const textarea = this.$refs['comment-textarea']
-      if (textarea) {
-        textarea.focus()
-        const caretPosition = textarea.value.length
-        textarea.setSelectionRange(caretPosition, caretPosition)
-      }
-    },
-
-    getRevision(form) {
-      if (!form) {
-        return undefined
-      }
-      const file = form.get('file')
-      const rgxMatches = file.name.matchAll(REVISION_NUMBER_REGEX)
-      const revision = Array.from(rgxMatches).pop()?.[1]
-      return revision
-    },
-
-    onAddChecklistItem(item) {
-      delete item.index
-      this.checklist.push(item)
-    },
-
-    onInsertChecklistItem(item) {
-      this.checklist.splice(item.index, 0, item)
-      for (let i = 0; i < this.checklist.length; i++) {
-        this.checklist[i].index = i
-      }
-    },
-
-    resetStatus() {
-      const taskStatus = this.taskStatusMap.get(this.task.task_status_id)
-      if (
-        (!this.isCurrentUserArtist || taskStatus.is_artist_allowed) &&
-        (!this.isCurrentUserClient || taskStatus.is_client_allowed)
-      ) {
-        this.task_status_id = this.task.task_status_id
-      } else {
-        this.task_status_id = this.taskStatusForCurrentUser[0]?.id
-      }
-    },
-
-    onDragover() {
-      this.isDragging = true
-    },
-
-    onDragleave() {
-      this.isDragging = false
-    },
-
-    onDrop(event) {
-      if (event.target.id === 'drop-mask') return
-      if (
-        event.target.parentElement?.className?.indexOf('add-attachment-box') >=
-        0
-      )
-        return
-      if (
-        event.target.parentElement?.className?.indexOf(
-          'add-attachment-buttons'
-        ) >= 0
-      )
-        return
-      if (
-        event.target.parentElement?.className?.indexOf(
-          'attachment-modal-box'
-        ) >= 0
-      )
-        return
-
-      const forms = []
-      for (let i = 0; i < event.dataTransfer.files.length; i++) {
-        const form = new FormData()
-        form.append('file', event.dataTransfer.files[i])
-        forms.push(form)
-      }
-      if (this.mode === 'publish') {
-        this.$emit('file-drop', forms)
-      } else {
-        this.addCommentAttachment(forms)
-      }
-      this.isDragging = false
-    },
-
-    /*
-     * When a file is pasted in the comment area, it adds it to the attachments.
-     */
-    onPaste(event) {
-      if (this.modals.addCommentAttachment) return
-      if (this.$refs['comment-textarea'] !== document.activeElement) return
-      const files = event.clipboardData.files
-      if (files.length > 0) {
-        const form = new FormData()
-        form.append('file', files[0])
-        this.addCommentAttachment([form])
-      }
-    },
-
-    onAddCommentAttachmentClicked() {
-      this.modals.addCommentAttachment = true
-    },
-
-    addCommentAttachment(forms) {
-      this.onCloseCommentAttachment()
-      this.attachments = this.attachments.concat(forms)
-    },
-
-    onCloseCommentAttachment() {
-      this.modals.addCommentAttachment = false
-    },
-
-    removeAttachment(attach) {
-      this.attachments = this.attachments.filter(a => a !== attach)
-    },
-
-    addChecklistEntry(index) {
-      if (index === -1 || index === this.checklist.length - 1) {
-        this.checklist.push({
-          text: '',
-          checked: false
-        })
-      }
-    },
-
-    removeTask(entry) {
-      this.checklist = remove(this.checklist, entry)
-    },
-
-    async setValue(comment) {
-      this.checklist = JSON.parse(JSON.stringify(comment.checklist))
-      this.text = comment.text
-
-      // duplicate attachment files
-      this.attachments = (
-        await Promise.all(
-          comment.attachment_files.map(async attachment => {
-            const fileUrl = getDownloadAttachmentPath(attachment)
-            const response = await fetch(fileUrl)
-            if (!response.ok) return
-            const fileBlob = await response.blob()
-            const formData = new FormData()
-            formData.append('file', fileBlob, attachment.name)
-            return formData
-          })
-        )
-      ).filter(Boolean)
-    },
-
-    atOptionsFilter(name, chunk, at, v) {
-      // filter the list by the given at symbol
-      const option_at = v?.isTaskType ? '#' : '@'
-      // @ for team, # for task type
-      if (at !== option_at) return false
-      // match at lower-case
-      return name?.toLowerCase().indexOf(chunk.toLowerCase()) > -1
-    },
-
-    onAtTextChanged(input) {
-      if (input.includes('@frame')) {
-        this.text = replaceTimeWithTimecode(
-          input,
-          this.revision,
-          this.frame + 1,
-          this.fps
-        )
-      }
-    },
-
-    setAnnotationSnapshots(files) {
-      this.attachmentModal.addFiles(files)
-    },
-
-    showAnnotationLoading() {
-      this.attachmentModal.showAnnotationLoading()
-    },
-
-    hideAnnotationLoading() {
-      this.attachmentModal.hideAnnotationLoading()
-    },
-
-    onSelectEmoji(emoji) {
-      const textarea = this.$refs['comment-textarea']
-      this.text = strings.insertInTextArea(textarea, emoji.i)
-    }
-  },
-
-  watch: {
-    task: {
-      immediate: true,
-      handler() {
-        this.resetStatus()
-        const draft = drafts.getTaskDraft(this.task.id)
-        if (draft) {
-          this.text = draft
-        }
-      }
-    },
-
-    mode() {
-      if (this.mode === 'publish') {
-        this.checklist = []
-        this.attachments = []
-        if (this.text && this.text.length > 0) {
-          this.showCommentArea = true
-        }
-      } else {
-        this.$emit('clear-files')
-      }
-    },
-
-    isFrameAddition(value) {
-      if (this.isCurrentUserClient) {
-        preferences.setPreference('comments:add-frame-when-posting', value)
-      }
-    },
-
-    previewForms: {
-      deep: true,
-      immediate: true,
-      handler() {
-        const form = this.previewForms?.findLast(
-          form => this.getRevision(form) > 0
-        )
-        this.nextRevision = this.getRevision(form)
-      }
-    },
-
-    taskTypes: {
-      deep: true,
-      immediate: true,
-      handler(values) {
-        const taskTypeOptions = values.map(taskType => {
-          return {
-            isTaskType: true,
-            full_name: taskType.name,
-            color: taskType.color,
-            id: taskType.id,
-            url: taskType.url
-          }
-        })
-        taskTypeOptions.push({
-          isTaskType: true,
-          color: '#000',
-          full_name: 'All'
-        })
-        this.membersForAts['#'] = taskTypeOptions
-      }
-    },
-
-    team: {
-      deep: true,
-      immediate: true,
-      handler() {
-        let teamOptions
-        if (this.isCurrentUserClient) {
-          teamOptions = this.team.filter(person =>
-            ['admin', 'manager', 'client'].includes(person.role)
-          )
-        } else {
-          teamOptions = [...this.team]
-        }
-        if (!this.isCurrentUserClient) {
-          teamOptions = teamOptions.concat(
-            this.productionDepartmentIds.map(departmentId => {
-              const department = this.departmentMap.get(departmentId)
-              return {
-                isDepartment: true,
-                full_name: department.name,
-                color: department.color,
-                id: departmentId
-              }
-            })
-          )
-        }
-        teamOptions.push({
-          isTime: true,
-          at: '@',
-          full_name: 'frame'
-        })
-        this.membersForAts['@'] = teamOptions
-      }
-    }
+  }
+  if (reset) {
+    link.value = null
   }
 }
+
+const runAddComment = (
+  textVal,
+  attachmentsVal,
+  checklistVal,
+  taskStatusId,
+  revisionVal,
+  linkVal,
+  force = false
+) => {
+  if (!isValidForm.value) {
+    return
+  }
+  const taskStatus = taskStatusMap.value.get(task_status_id.value)
+  if (
+    taskStatus.is_feedback_request &&
+    props.previewForms.length === 0 &&
+    !force
+  ) {
+    modals.confirmFeedbackPublish = true
+    return
+  }
+
+  if (isFrameAddition.value) {
+    textVal = '@frame \n\n' + textVal
+    textVal = replaceTimeWithTimecode(
+      textVal,
+      props.revision,
+      props.frame + 1,
+      props.fps
+    )
+  }
+
+  store.commit('CLEAR_UPLOAD_PROGRESS')
+  if (mode.value === 'publish') {
+    if (!showCommentArea.value) textVal = ''
+    attachmentsVal = []
+    checklistVal = []
+  } else {
+    checklistVal = checklistVal.filter(item => item.text)
+  }
+
+  revisionVal = Number(revisionVal)
+  if (isNaN(revisionVal) || revisionVal < 1) {
+    revisionVal = undefined
+  }
+
+  if (!showLinkField.value) {
+    linkVal = null
+  }
+
+  emit(
+    'add-comment',
+    textVal,
+    attachmentsVal,
+    checklistVal,
+    taskStatusId,
+    revisionVal,
+    linkVal,
+    forClient.value
+  )
+}
+
+const reset = () => {
+  text.value = ''
+  link.value = null
+  attachments.value = []
+  checklistItems.value = []
+  nextRevision.value = undefined
+  forClient.value = false
+}
+
+const focus = () => {
+  const textarea = commentTextareaRef.value
+  if (textarea) {
+    textarea.focus()
+    const caretPosition = textarea.value.length
+    textarea.setSelectionRange(caretPosition, caretPosition)
+  }
+}
+
+const getRevision = form => {
+  if (!form) {
+    return undefined
+  }
+  const file = form.get('file')
+  const rgxMatches = file.name.matchAll(REVISION_NUMBER_REGEX)
+  const revision = Array.from(rgxMatches).pop()?.[1]
+  return revision
+}
+
+const onAddChecklistItem = item => {
+  delete item.index
+  checklistItems.value.push(item)
+}
+
+const onInsertChecklistItem = item => {
+  checklistItems.value.splice(item.index, 0, item)
+  for (let i = 0; i < checklistItems.value.length; i++) {
+    checklistItems.value[i].index = i
+  }
+}
+
+const resetStatus = () => {
+  const taskStatus = taskStatusMap.value.get(props.task.task_status_id)
+  if (
+    (!isCurrentUserArtist.value || taskStatus.is_artist_allowed) &&
+    (!isCurrentUserClient.value || taskStatus.is_client_allowed)
+  ) {
+    task_status_id.value = props.task.task_status_id
+  } else {
+    task_status_id.value = taskStatusForCurrentUser.value[0]?.id
+  }
+}
+
+const onDragover = () => {
+  isDragging.value = true
+}
+
+const onDragleave = () => {
+  isDragging.value = false
+}
+
+const onDrop = event => {
+  if (event.target.id === 'drop-mask') return
+  if (event.target.parentElement?.className?.indexOf('add-attachment-box') >= 0)
+    return
+  if (
+    event.target.parentElement?.className?.indexOf('add-attachment-buttons') >=
+    0
+  )
+    return
+  if (
+    event.target.parentElement?.className?.indexOf('attachment-modal-box') >= 0
+  )
+    return
+
+  const forms = []
+  for (let i = 0; i < event.dataTransfer.files.length; i++) {
+    const form = new FormData()
+    form.append('file', event.dataTransfer.files[i])
+    forms.push(form)
+  }
+  if (mode.value === 'publish') {
+    emit('file-drop', forms)
+  } else {
+    addCommentAttachment(forms)
+  }
+  isDragging.value = false
+}
+
+/*
+ * When a file is pasted in the comment area, it adds it to the attachments.
+ */
+const onPaste = event => {
+  if (modals.addCommentAttachment) return
+  if (commentTextareaRef.value !== document.activeElement) return
+  const files = event.clipboardData.files
+  if (files.length > 0) {
+    const form = new FormData()
+    form.append('file', files[0])
+    addCommentAttachment([form])
+  }
+}
+
+const onAddCommentAttachmentClicked = () => {
+  modals.addCommentAttachment = true
+}
+
+const addCommentAttachment = forms => {
+  onCloseCommentAttachment()
+  attachments.value = attachments.value.concat(forms)
+}
+
+const onCloseCommentAttachment = () => {
+  modals.addCommentAttachment = false
+}
+
+const removeAttachment = attach => {
+  attachments.value = attachments.value.filter(a => a !== attach)
+}
+
+const addChecklistEntry = index => {
+  if (index === -1 || index === checklistItems.value.length - 1) {
+    checklistItems.value.push({
+      text: '',
+      checked: false
+    })
+  }
+}
+
+const removeTask = entry => {
+  checklistItems.value = remove(checklistItems.value, entry)
+}
+
+const setValue = async comment => {
+  checklistItems.value = JSON.parse(JSON.stringify(comment.checklist))
+  text.value = comment.text
+
+  // duplicate attachment files
+  attachments.value = (
+    await Promise.all(
+      comment.attachment_files.map(async attachment => {
+        const fileUrl = getDownloadAttachmentPath(attachment)
+        const response = await fetch(fileUrl)
+        if (!response.ok) return
+        const fileBlob = await response.blob()
+        const formData = new FormData()
+        formData.append('file', fileBlob, attachment.name)
+        return formData
+      })
+    )
+  ).filter(Boolean)
+}
+
+const onAtTextChanged = input => {
+  if (input.includes('@frame')) {
+    text.value = replaceTimeWithTimecode(
+      input,
+      props.revision,
+      props.frame + 1,
+      props.fps
+    )
+  }
+}
+
+const setAnnotationSnapshots = files => {
+  getAttachmentModal().addFiles(files)
+}
+
+const showAnnotationLoading = (kind = 'standard') => {
+  getAttachmentModal().showAnnotationLoading(kind)
+}
+
+const hideAnnotationLoading = () => {
+  getAttachmentModal().hideAnnotationLoading()
+}
+
+const onSelectEmoji = emoji => {
+  const textarea = commentTextareaRef.value
+  text.value = strings.insertInTextArea(textarea, emoji.i)
+}
+
+onBeforeMount(() => {
+  if (!attachments.value) {
+    attachments.value = []
+  }
+  if (!checklistItems.value) {
+    checklistItems.value = []
+  }
+})
+
+onMounted(() => {
+  if (!isCurrentUserClient.value) {
+    isFrameAddition.value = false
+  } else {
+    isFrameAddition.value = preferences.getBoolPreference(
+      'comments:add-frame-when-posting',
+      false
+    )
+  }
+  const production = productionMap.value.get(props.task.project_id)
+  mode.value =
+    production?.is_publish_default_for_artists && isCurrentUserArtist.value
+      ? 'publish'
+      : 'status'
+
+  nextTick(() => {
+    ;[
+      'drag',
+      'dragstart',
+      'dragend',
+      'dragover',
+      'dragenter',
+      'dragleave',
+      'drop'
+    ].forEach(evt => {
+      if (wrapperRef.value) {
+        wrapperRef.value.addEventListener(evt, e => {
+          e.preventDefault()
+          e.stopPropagation()
+        })
+      }
+    })
+  })
+  window.addEventListener('paste', onPaste, false)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('paste', onPaste, false)
+})
+
+watch(
+  () => props.task,
+  () => {
+    resetStatus()
+    const draft = drafts.getTaskDraft(props.task.id)
+    text.value = draft?.text || ''
+    checklistItems.value = draft?.checklist || []
+  },
+  { immediate: true }
+)
+
+watch(mode, () => {
+  if (mode.value === 'publish') {
+    checklistItems.value = []
+    attachments.value = []
+    if (text.value && text.value.length > 0) {
+      showCommentArea.value = true
+    }
+  } else {
+    emit('clear-files')
+  }
+})
+
+watch(isFrameAddition, value => {
+  if (isCurrentUserClient.value) {
+    preferences.setPreference('comments:add-frame-when-posting', value)
+  }
+})
+
+watch(
+  () => props.previewForms,
+  () => {
+    const form = props.previewForms?.findLast(form => getRevision(form) > 0)
+    nextRevision.value = getRevision(form)
+  },
+  { deep: true, immediate: true }
+)
+
+defineExpose({
+  reset,
+  focus,
+  resetStatus,
+  setValue,
+  setAnnotationSnapshots,
+  showAnnotationLoading,
+  hideAnnotationLoading
+})
 </script>
 
 <style lang="scss" scoped>
@@ -1138,6 +1127,11 @@ article.add-comment {
   }
 }
 
+// tag for vue-at
+.tag.thin {
+  line-height: 1.2em;
+}
+
 .attachment-title {
   margin-left: 3px;
   margin-top: 6px;
@@ -1157,6 +1151,37 @@ article.add-comment {
   span {
     cursor: pointer;
     float: right;
+  }
+}
+
+.attachment-image {
+  display: inline-block;
+  margin: 3px;
+  position: relative;
+  vertical-align: top;
+
+  img {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: block;
+    max-height: 80px;
+    max-width: 120px;
+    object-fit: cover;
+  }
+
+  .attachment-remove {
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    color: white;
+    cursor: pointer;
+    font-size: 0.8em;
+    height: 18px;
+    line-height: 18px;
+    position: absolute;
+    right: 2px;
+    text-align: center;
+    top: 2px;
+    width: 18px;
   }
 }
 

@@ -87,7 +87,7 @@
               timeSpent: true
             }"
             v-model="metadataDisplayHeaders"
-            v-show="columnSelectorDisplayed"
+            v-model:is-open="columnSelectorDisplayed"
             v-if="isShowInfosBreakdown"
           />
           <span class="filler"></span>
@@ -840,7 +840,7 @@ export default {
 
     resetSequenceOption() {
       if (
-        this.currentProduction.production_style === 'nft' &&
+        this.currentProduction?.production_style === 'nft' &&
         this.castingSequencesOptions[1]
       ) {
         this.sequenceId = this.castingSequencesOptions[1].value
@@ -1094,7 +1094,7 @@ export default {
       this.errors.importingError = null
       this.hideImportRenderModal()
       this.importCsvFormData = undefined
-      this.$refs['import-modal'].reset()
+      this.$refs['import-modal']?.reset()
       this.showImportModal()
     },
 

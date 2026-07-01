@@ -1,9 +1,42 @@
 import moment from 'moment-timezone'
 
+const SUNDAY = 0
+const SATURDAY = 6
+
+// Cache formatDuration results. toLocaleString is expensive (~0.05ms per
+// call) and the function is hammered by tables (3000+ calls per render). Key
+// includes every parameter that affects the output. Capped and cleared.
+const _durationCache = new Map()
+
 export const range = (start, end) => {
   let length = end - start + 1
   if (length < 0) length = 0
   return [...Array(length).keys()].map(i => i + start)
+}
+
+export const formatDuration = (organisation, minutes, toLocale = true) => {
+  if (!minutes) {
+    return 0
+  }
+  const inHours = organisation.format_duration_in_hours
+  const hpd = organisation.hours_by_day || 8
+  const cacheKey = `${minutes}-${inHours ? 1 : 0}-${toLocale ? 1 : 0}-${hpd}`
+  const cached = _durationCache.get(cacheKey)
+  if (cached !== undefined) return cached
+
+  const duration = inHours ? minutes / 60 : minutesToDays(organisation, minutes)
+
+  let result
+  if (toLocale) {
+    result = duration.toLocaleString('fullwide', {
+      maximumFractionDigits: 2
+    })
+  } else {
+    result = Math.round(duration * 100) / 100
+  }
+  if (_durationCache.size > 10000) _durationCache.clear()
+  _durationCache.set(cacheKey, result)
+  return result
 }
 
 export const parseDate = date => {
@@ -82,7 +115,7 @@ export const getWeekRange = (year, currentYear) => {
   if (currentYear === year) {
     return range(1, moment().week())
   } else {
-    return range(1, 52)
+    return range(1, moment(String(year), 'YYYY').isoWeeksInYear())
   }
 }
 
@@ -203,8 +236,6 @@ export const getDatesFromEndDate = (
 }
 
 export const getBusinessDays = (startDate, endDate, daysOff = []) => {
-  const Sunday = 0
-  const Saturday = 6
   const datesOff = daysOff
     ? getDayOffRange(daysOff).map(dayOff => dayOff.date)
     : []
@@ -212,8 +243,8 @@ export const getBusinessDays = (startDate, endDate, daysOff = []) => {
   let nbDays = 0
   while (newDate.isSameOrBefore(endDate)) {
     if (
-      newDate.day() !== Sunday &&
-      newDate.day() !== Saturday &&
+      newDate.day() !== SUNDAY &&
+      newDate.day() !== SATURDAY &&
       !datesOff.includes(newDate.format('YYYY-MM-DD'))
     ) {
       nbDays++
@@ -223,30 +254,30 @@ export const getBusinessDays = (startDate, endDate, daysOff = []) => {
   return nbDays
 }
 
-export const addBusinessDays = (originalDate, numDaysToAdd, daysOff = []) => {
-  if (!originalDate) {
-    return
-  }
-  const Sunday = 0
-  const Saturday = 6
+const adjustBusinessDays = (originalDate, numDays, daysOff, method) => {
+  if (!originalDate) return
   const datesOff = daysOff
     ? getDayOffRange(daysOff).map(dayOff => dayOff.date)
     : []
   const newDate = originalDate.clone()
-  let daysRemaining = numDaysToAdd
+  let daysRemaining = numDays
   while (daysRemaining >= 0) {
     if (
-      newDate.day() !== Sunday &&
-      newDate.day() !== Saturday &&
+      newDate.day() !== SUNDAY &&
+      newDate.day() !== SATURDAY &&
       !datesOff.includes(newDate.format('YYYY-MM-DD'))
     ) {
       daysRemaining--
     }
     if (daysRemaining >= 0) {
-      newDate.add(1, 'days')
+      newDate[method](1, 'days')
     }
   }
   return newDate
+}
+
+export const addBusinessDays = (originalDate, numDaysToAdd, daysOff = []) => {
+  return adjustBusinessDays(originalDate, numDaysToAdd, daysOff, 'add')
 }
 
 export const removeBusinessDays = (
@@ -254,26 +285,7 @@ export const removeBusinessDays = (
   numDaysToRemove,
   daysOff = []
 ) => {
-  const Sunday = 0
-  const Saturday = 6
-  const datesOff = daysOff
-    ? getDayOffRange(daysOff).map(dayOff => dayOff.date)
-    : []
-  const newDate = originalDate.clone()
-  let daysRemaining = numDaysToRemove
-  while (daysRemaining >= 0) {
-    if (
-      newDate.day() !== Sunday &&
-      newDate.day() !== Saturday &&
-      !datesOff.includes(newDate.format('YYYY-MM-DD'))
-    ) {
-      daysRemaining--
-    }
-    if (daysRemaining >= 0) {
-      newDate.subtract(1, 'days')
-    }
-  }
-  return newDate
+  return adjustBusinessDays(originalDate, numDaysToRemove, daysOff, 'subtract')
 }
 
 export const getDayOffRange = (daysOff = []) => {

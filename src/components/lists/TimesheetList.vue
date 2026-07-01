@@ -6,7 +6,6 @@
           :can-delete="false"
           :min-date="disabledDates.to"
           :max-date="disabledDates.from"
-          utc
           :with-margin="false"
           v-model="selectedDate"
         />
@@ -32,7 +31,7 @@
     </div>
 
     <div class="datatable-wrapper" ref="body" @scroll.passive="onBodyScroll">
-      <table class="datatable multi-section">
+      <table class="datatable">
         <thead class="datatable-head">
           <tr>
             <th
@@ -110,7 +109,9 @@
               @change="onSliderChange"
               v-if="!personIsDayOff"
             />
-            <td v-else></td>
+            <td class="time-spent day-off-cell" v-else>
+              {{ $t('timesheets.day_off_no_logging') }}
+            </td>
           </tr>
         </tbody>
         <tbody class="datatable-body" v-if="!isLoading && !hideDone">
@@ -166,6 +167,9 @@
               @change="onSliderChange"
               v-if="!personIsDayOff"
             />
+            <td class="time-spent day-off-cell" v-else>
+              {{ $t('timesheets.day_off_no_logging') }}
+            </td>
           </tr>
         </tbody>
         <tbody
@@ -176,9 +180,7 @@
             <th colspan="4" scope="rowgroup">
               <div class="datatable-row-header flexrow">
                 <page-subtitle :text="$t('timesheets.unassigned_tasks')" />
-                <info-question-mark
-                  :text="$t('timesheets.unassigned_hint')"
-                />
+                <info-question-mark :text="$t('timesheets.unassigned_hint')" />
               </div>
             </th>
           </tr>
@@ -229,7 +231,13 @@
       </table>
     </div>
 
-    <table-info :is-loading="isLoading" :is-error="isError" />
+    <table-info
+      :is-loading="isLoading"
+      :is-error="isError"
+      :cells="2"
+      :with-thumbnail="false"
+      :with-actions="false"
+    />
 
     <p class="has-text-centered footer-info" v-if="!isLoading">
       {{ tasks.length }} {{ $tc('tasks.tasks', tasks.length) }}
@@ -489,13 +497,24 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.datatable-row-header {
-  z-index: 6; // over the .vue-slider (z-index: 5)
+.datatable-head .datatable-row-header {
+  z-index: 8; // sticky <th> must be above all
 
   &.time-spent {
-    position: relative;
+    z-index: 6; // <th> must be under the sticky <th> on horizontal scroll
+  }
+}
+
+.datatable-body .datatable-row-header {
+  z-index: 7; // <th> must be over the .vue-slider (z-index: 5) and .vue-slider-dot (z-index: 6)
+
+  &.time-spent {
     z-index: 5; // <th> must be under <td> on vertical scroll
   }
+}
+
+:deep(.vue-slider-dot:hover) {
+  z-index: 6; // hack to put slider tooltip hover the header
 }
 
 .datatable-body tr:first-child th,
@@ -540,6 +559,11 @@ export default {
 
 .time-spent {
   width: 100%;
+}
+
+.day-off-cell {
+  color: var(--text-alt);
+  font-style: italic;
 }
 
 td.name {

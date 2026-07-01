@@ -18,31 +18,30 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'route-tabs',
-
-  props: {
-    activeTab: {
-      type: String,
-      default: ''
-    },
-    tabs: {
-      type: Array,
-      default: () => []
-    },
-    routeKey: {
-      type: String,
-      default: 'tab'
-    }
+<script setup>
+defineProps({
+  activeTab: {
+    type: String,
+    default: ''
+  },
+  tabs: {
+    type: Array,
+    default: () => []
+  },
+  routeKey: {
+    type: String,
+    default: 'tab'
   }
-}
+})
 </script>
 
 <style lang="scss" scoped>
 .tabs ul {
   margin-left: 0;
   margin-right: 0;
+}
+.tabs li {
+  text-transform: capitalize;
 }
 .tabs li + li {
   margin: 0;

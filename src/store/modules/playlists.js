@@ -17,17 +17,27 @@ import {
   CHANGE_PLAYLIST_PREVIEW,
   CHANGE_PLAYLIST_ORDER,
   CHANGE_PLAYLIST_TYPE,
+  UPDATE_PLAYLIST_TO_LATEST_VERSION,
   ADD_ENTITY_TO_PLAYLIST,
   REMOVE_ENTITY_FROM_PLAYLIST,
   LOAD_ENTITY_PREVIEW_FILES_END,
+  LOAD_PRODUCTIONS_END,
+  LOAD_TASK_STATUSES_END,
+  LOAD_TASK_TYPES_END,
   ADD_NEW_JOB,
   MARK_JOB_AS_DONE,
   REMOVE_BUILD_JOB,
+  SET_CURRENT_PRODUCTION,
   SET_PLAYLIST_ENTRY_MAP,
   UPDATE_PREVIEW_ANNOTATION,
+  SET_PREVIEW_FILE_ANNOTATIONS,
   UPDATE_PREVIEW_VALIDATION_STATUS,
   RESET_ALL
 } from '@/store/mutation-types'
+
+// In-flight annotation requests, keyed by preview file id, to dedupe the
+// concurrent fetches triggered by the player's sliding-window prefetch.
+const annotationRequests = new Map()
 
 const helpers = {
   getEntityPreviewFile(entity, previewFileList, taskTypeId) {
@@ -44,6 +54,16 @@ const helpers = {
     }
 
     return previewFile || null
+  },
+
+  getSharedPlaylistGuestErrorMessage(err) {
+    const body = err?.body
+    if (body && typeof body === 'object') {
+      if (body.message) return String(body.message)
+      if (body.error) return String(body.error)
+    }
+    if (typeof body === 'string' && body.trim()) return body
+    return ''
   }
 }
 
@@ -128,6 +148,29 @@ const actions = {
 
   loadEntityPreviewFiles({ commit }, entity) {
     return playlistsApi.getEntityPreviewFiles(entity)
+  },
+
+  // Annotations are no longer embedded in the playlist payload (too heavy):
+  // they are fetched on demand for the current preview and its neighbours.
+  loadPreviewFileAnnotations({ state, commit }, previewFileId) {
+    if (!previewFileId) return Promise.resolve([])
+    const cached = state.previewFileMap.get(previewFileId)
+    if (cached && cached.annotations !== undefined) {
+      return Promise.resolve(cached.annotations)
+    }
+    if (annotationRequests.has(previewFileId)) {
+      return annotationRequests.get(previewFileId)
+    }
+    const request = playlistsApi
+      .getPreviewFile(previewFileId)
+      .then(previewFile => {
+        const annotations = previewFile.annotations || []
+        commit(SET_PREVIEW_FILE_ANNOTATIONS, { previewFileId, annotations })
+        return annotations
+      })
+      .finally(() => annotationRequests.delete(previewFileId))
+    annotationRequests.set(previewFileId, request)
+    return request
   },
 
   async newPlaylist({ commit }, data) {
@@ -231,6 +274,11 @@ const actions = {
     return dispatch('editPlaylist', { data: playlist })
   },
 
+  updatePlaylistToLatestVersion({ commit, dispatch }, { playlist }) {
+    commit(UPDATE_PLAYLIST_TO_LATEST_VERSION, { playlist })
+    return dispatch('editPlaylist', { data: playlist })
+  },
+
   loadTempPlaylist({ commit, dispatch, rootGetters }, { taskIds, sort }) {
     const production = rootGetters.currentProduction
     return playlistsApi.loadTempPlaylist(production, taskIds, sort)
@@ -251,6 +299,35 @@ const actions = {
 
   notifyClients({ commit }, { playlist, studioId, departmentId }) {
     return playlistsApi.notifyClients(playlist, studioId, departmentId)
+  },
+
+  async postSharedPlaylistGuest(_, { shareToken, data }) {
+    try {
+      return await playlistsApi.postSharedPlaylistGuest(shareToken, data)
+    } catch (err) {
+      throw new Error(helpers.getSharedPlaylistGuestErrorMessage(err), {
+        cause: err
+      })
+    }
+  },
+
+  loadSharedPlaylist(_, shareToken) {
+    return playlistsApi.loadSharedPlaylist(shareToken)
+  },
+
+  async loadSharedPlaylistContext({ commit }, shareToken) {
+    const data = await playlistsApi.loadSharedPlaylistContext(shareToken)
+    if (data.project) {
+      commit(LOAD_PRODUCTIONS_END, [data.project])
+      commit(SET_CURRENT_PRODUCTION, data.project.id)
+    }
+    commit(LOAD_TASK_TYPES_END, data.task_types || [])
+    commit(LOAD_TASK_STATUSES_END, data.task_statuses || [])
+    return data
+  },
+
+  saveSharedPlaylistAnnotations(_, { shareToken, data }) {
+    return playlistsApi.saveSharedPlaylistAnnotations(shareToken, data)
   }
 }
 
@@ -292,6 +369,17 @@ const mutations = {
     if (previewFile) {
       previewFile.annotations = annotations
     }
+    if (entity) {
+      entity.preview_file_annotations = annotations
+    }
+  },
+
+  [SET_PREVIEW_FILE_ANNOTATIONS](state, { previewFileId, annotations }) {
+    const previewFile = state.previewFileMap.get(previewFileId)
+    if (previewFile) {
+      previewFile.annotations = annotations
+    }
+    const entity = state.previewFileEntityMap.get(previewFileId)
     if (entity) {
       entity.preview_file_annotations = annotations
     }
@@ -487,6 +575,44 @@ const mutations = {
         }
       })
     }
+  },
+
+  // Bump every entity to the latest revision of the task type it is
+  // currently showing, without changing the task type. Unlike
+  // CHANGE_PLAYLIST_TYPE, the task type is resolved per entity from its
+  // current preview file, so a playlist mixing several task types keeps
+  // that mix.
+  [UPDATE_PLAYLIST_TO_LATEST_VERSION](state, { playlist }) {
+    if (!playlist) return
+    playlist.shots.forEach(entity => {
+      const taskTypeId = Object.keys(entity.preview_files).find(id =>
+        entity.preview_files[id].some(p => p.id === entity.preview_file_id)
+      )
+      if (!taskTypeId) return
+      const files = entity.preview_files[taskTypeId]
+      if (!files || files.length === 0) return
+      const previewFile = files.reduce(
+        (latest, file) => (file.revision > latest.revision ? file : latest),
+        files[0]
+      )
+      if (!previewFile || previewFile.id === entity.preview_file_id) return
+      state.playlistEntryMap.delete(`${entity.id}-${entity.preview_file_id}`)
+      entity.preview_file_id = previewFile.id
+      entity.preview_file_task_id = previewFile.task_id
+      entity.preview_file_extension = previewFile.extension
+      entity.preview_file_revision = previewFile.revision
+      entity.preview_file_width = previewFile.width
+      entity.preview_file_height = previewFile.height
+      entity.preview_file_duration = previewFile.duration
+      entity.preview_file_annotations = previewFile.annotations
+      entity.extension = previewFile.extension
+      entity.revision = previewFile.revision
+      entity.width = previewFile.width
+      entity.height = previewFile.height
+      entity.duration = previewFile.duration
+      entity.annotations = previewFile.annotations
+      state.playlistEntryMap.set(`${entity.id}-${previewFile.id}`, entity)
+    })
   },
 
   [ADD_PLAYLISTS](state, playlists) {

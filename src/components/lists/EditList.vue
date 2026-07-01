@@ -16,9 +16,9 @@
       <table-metadata-header-menu
         ref="headerMetadataMenu"
         :is-edit-allowed="
-          isMetadataColumnEditAllowed(lastMetadaDataHeaderMenuDisplayed)
+          isMetadataColumnEditAllowed(lastMetadataHeaderMenuDisplayed)
         "
-        :is-sticked="stickedColumns[lastMetadaDataHeaderMenuDisplayed]"
+        :is-sticked="stickedColumns[lastMetadataHeaderMenuDisplayed]"
         @edit-clicked="onEditMetadataClicked()"
         @delete-clicked="onDeleteMetadataClicked()"
         @sort-by-clicked="onSortByMetadataClicked()"
@@ -66,9 +66,6 @@
                   offsets['editor-' + j] ? `${offsets['editor-' + j]}px` : '0'
                 "
                 is-stick
-                :style="{
-                  'z-index': 1001
-                }"
                 @show-metadata-header-menu="
                   event => showMetadataHeaderMenu(descriptor.id, event)
                 "
@@ -189,7 +186,7 @@
                 }"
                 namespace="edits"
                 v-model="metadataDisplayHeaders"
-                v-show="columnSelectorDisplayed"
+                v-model:is-open="columnSelectorDisplayed"
                 v-if="displaySettings.showInfos"
               />
 
@@ -453,7 +450,7 @@
       </table>
     </div>
 
-    <table-info :is-loading="isLoading" :is-error="isError" />
+    <table-info :is-loading="isLoading" :is-error="isError" big-cells />
 
     <div
       class="has-text-centered"
@@ -591,7 +588,7 @@ export default {
       type: 'edit',
       hiddenColumns: {},
       lastHeaderMenuDisplayed: null,
-      lastMetadaDataHeaderMenuDisplayed: null,
+      lastMetadataHeaderMenuDisplayed: null,
       lastHeaderMenuDisplayedIndexInGrid: null,
       lastSelectedEdit: null,
       lastSelection: null,
@@ -698,7 +695,7 @@ export default {
     ...mapActions(['displayMoreEdits', 'setEditSelection']),
 
     isSelected(lineIndex, columnIndex) {
-      return this.editSelectionGrid[lineIndex][columnIndex]
+      return this.editSelectionGrid.has(`${lineIndex}-${columnIndex}`)
     },
 
     toggleLine(edit, event) {
@@ -793,8 +790,8 @@ export default {
     },
 
     metadataStickColumnClicked(event) {
-      this.toggleStickedColumns(this.lastMetadaDataHeaderMenuDisplayed)
-      this.showMetadataHeaderMenu(this.lastMetadaDataHeaderMenuDisplayed, event)
+      this.toggleStickedColumns(this.lastMetadataHeaderMenuDisplayed)
+      this.showMetadataHeaderMenu(this.lastMetadataHeaderMenuDisplayed, event)
     },
 
     updateOffsets() {
@@ -880,7 +877,7 @@ th.actions {
   color: inherit;
 }
 
-.name.edit-name {
+thead .name.edit-name {
   min-width: 110px;
   width: 110px;
 }
@@ -1001,7 +998,6 @@ input[type='number'] {
 
 td.metadata-descriptor {
   height: 3.1rem;
-  max-width: 120px;
   padding: 0;
 }
 

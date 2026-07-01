@@ -69,12 +69,17 @@
     <route-tabs class="mb0" :active-tab="activeTab" :tabs="tabs" />
 
     <people-list
-      :entries="activeTab === 'active' ? activePeople : unactivePeople"
-      :is-loading="isPeopleLoading"
-      :is-error="isPeopleLoadingError"
+      :entries="listEntries"
+      :is-guests="isGuestTab"
+      :is-archived-guests="activeTab === 'archived-guests'"
+      :is-loading="isListLoading"
+      :is-error="isListError"
+      :seats-remaining="activeTab === 'active' ? seatsRemaining : null"
+      @archive-clicked="onArchiveClicked"
       @avatar-clicked="onAvatarClicked"
       @delete-clicked="onDeleteClicked"
       @edit-clicked="onEditClicked"
+      @restore-clicked="onRestoreClicked"
       @change-password-clicked="onChangePasswordClicked"
     />
 
@@ -127,12 +132,16 @@
       :is-invite-loading="loading.invite"
       :is-invitation-success="success.invite"
       :is-invitation-error="errors.invite"
+      :is-invite-link-loading="loading.inviteLink"
+      :is-invite-link-copied="success.inviteLinkCopied"
+      :is-invite-link-error="errors.inviteLink"
       :is-loading="loading.edit"
       :is-user-limit-error="errors.userLimit"
       :person-to-edit="personToEdit"
       @cancel="modals.edit = false"
       @confirm="confirmEditPeople"
       @confirm-invite="confirmCreateAndInvite"
+      @copy-invite-link="confirmCopyInviteLink"
       @invite="confirmInvite"
       @reset-error="resetError"
       v-if="modals.edit"
@@ -157,6 +166,16 @@
       @confirm="confirmDeletePeople"
       v-if="modals.del"
     />
+
+    <confirm-modal
+      :active="modals.archiveGuest"
+      :error-text="$t('people.archive_guest_error')"
+      :is-error="errors.archiveGuest"
+      :is-loading="loading.archiveGuest"
+      :text="$t('people.archive_guest_confirm')"
+      @cancel="modals.archiveGuest = false"
+      @confirm="confirmArchiveGuest"
+    />
   </div>
 </template>
 
@@ -171,6 +190,7 @@ import ButtonHrefLink from '@/components/widgets/ButtonHrefLink.vue'
 import ButtonSimple from '@/components/widgets/ButtonSimple.vue'
 import ChangePasswordModal from '@/components/modals/ChangePasswordModal.vue'
 import ComboboxDepartment from '@/components/widgets/ComboboxDepartment.vue'
+import ConfirmModal from '@/components/modals/ConfirmModal.vue'
 import ComboboxStudio from '@/components/widgets/ComboboxStudio.vue'
 import ComboboxStyled from '@/components/widgets/ComboboxStyled.vue'
 import EditAvatarModal from '@/components/modals/EditAvatarModal.vue'
@@ -195,6 +215,7 @@ export default {
     ChangePasswordModal,
     ComboboxDepartment,
     ComboboxStudio,
+    ConfirmModal,
     ComboboxStyled,
     EditAvatarModal,
     EditPersonModal,
@@ -215,8 +236,13 @@ export default {
       optionalCsvColumns: [
         'Phone',
         'Role',
-        'Contract Type',
+        'Departments',
         'Studio',
+        'Country',
+        'Contract Type',
+        'Position',
+        'Seniority',
+        'Daily Salary',
         'Active'
       ],
       dataMatchers: ['Email'],
@@ -231,23 +257,28 @@ export default {
         { label: 'vendor', value: 'vendor' }
       ],
       errors: {
+        archiveGuest: false,
         avatar: false,
         del: false,
         edit: false,
         invite: false,
+        inviteLink: false,
         invalidEmailDomain: false,
         userLimit: false
       },
       loading: {
+        archiveGuest: false,
         createAndInvite: false,
         del: false,
         deletingAvatar: false,
         edit: false,
         invite: false,
+        inviteLink: false,
         savingSearch: false,
         updatingAvatar: false
       },
       modals: {
+        archiveGuest: false,
         avatar: false,
         changePassword: false,
         del: false,
@@ -256,13 +287,15 @@ export default {
         isImportRenderDisplayed: false
       },
       parsedCSV: [],
+      personToArchive: null,
       personToDelete: {},
       personToEdit: { role: 'user' },
       personToChangePassword: {},
       selectedDepartment: '',
       selectedStudio: '',
       success: {
-        invite: false
+        invite: false,
+        inviteLinkCopied: false
       }
     }
   },
@@ -275,22 +308,39 @@ export default {
     this.setSearchFromUrl()
     await this.loadPeople()
     this.onSearchChange()
+    this.ensureGuestsLoaded()
   },
 
   computed: {
     ...mapGetters([
+      'activePeopleWithoutBot',
       'displayedPeople',
+      'guests',
       'isCurrentUserAdmin',
-      'isPeopleLoading',
-      'isPeopleLoadingError',
+      'isGuestsLoaded',
+      'isGuestsLoading',
+      'isGuestsLoadingError',
       'isImportPeopleLoading',
       'isImportPeopleLoadingError',
+      'isPeopleLoading',
+      'isPeopleLoadingError',
+      'mainConfig',
       'peopleSearchQueries',
       'personCsvFormData',
-      'studioMap'
+      'studioMap',
+      'userLimit'
     ]),
 
+    seatsRemaining() {
+      if (this.mainConfig.is_self_hosted) return null
+      return Math.max(0, this.userLimit - this.activePeopleWithoutBot.length)
+    },
+
     tabs() {
+      const guestCount = this.isGuestsLoaded ? this.currentGuests.length : null
+      const archivedGuestCount = this.isGuestsLoaded
+        ? this.archivedGuests.length
+        : null
       return [
         {
           name: 'active',
@@ -299,6 +349,20 @@ export default {
         {
           name: 'unactive',
           label: `${this.$t('people.unactive')} (${this.unactivePeople.length})`
+        },
+        {
+          name: 'guests',
+          label:
+            guestCount === null
+              ? this.$tc('people.guests', 2)
+              : `${this.$tc('people.guests', 2)} (${guestCount})`
+        },
+        {
+          name: 'archived-guests',
+          label:
+            archivedGuestCount === null
+              ? this.$t('people.archived_guests')
+              : `${this.$t('people.archived_guests')} (${archivedGuestCount})`
         }
       ]
     },
@@ -348,24 +412,94 @@ export default {
 
     unactivePeople() {
       return this.currentPeople.filter(person => !person.active)
+    },
+
+    filteredGuests() {
+      // Apply the same role / department / studio / search-text filters as
+      // the regular people list so the guests tab honours the toolbar
+      // controls. Guests typically have role=client; we still respect the
+      // toolbar value if the user picks something else.
+      const search = this.searchField?.getValue() || ''
+      const keyword = search.toLowerCase().trim()
+      let people = this.guests
+      if (keyword) {
+        people = people.filter(person =>
+          (person.name || '').toLowerCase().includes(keyword)
+        )
+      }
+      if (this.role !== 'all') {
+        people = people.filter(person => person.role === this.role)
+      }
+      if (this.selectedDepartment) {
+        people = people.filter(person =>
+          person.departments?.includes(this.selectedDepartment)
+        )
+      }
+      if (this.selectedStudio) {
+        people = people.filter(
+          person => person.studio_id === this.selectedStudio
+        )
+      }
+      return people.map(person => ({
+        ...person,
+        studio: this.studioMap.get(person.studio_id)
+      }))
+    },
+
+    currentGuests() {
+      return this.filteredGuests.filter(person => person.active)
+    },
+
+    archivedGuests() {
+      return this.filteredGuests.filter(person => !person.active)
+    },
+
+    isGuestTab() {
+      return ['guests', 'archived-guests'].includes(this.activeTab)
+    },
+
+    listEntries() {
+      if (this.activeTab === 'guests') return this.currentGuests
+      if (this.activeTab === 'archived-guests') return this.archivedGuests
+      if (this.activeTab === 'unactive') return this.unactivePeople
+      return this.activePeople
+    },
+
+    isListLoading() {
+      return this.isGuestTab ? this.isGuestsLoading : this.isPeopleLoading
+    },
+
+    isListError() {
+      return this.isGuestTab
+        ? this.isGuestsLoadingError
+        : this.isPeopleLoadingError
     }
   },
 
   methods: {
     ...mapActions([
+      'archivePerson',
       'clearPersonAvatar',
       'deletePeople',
       'editPerson',
+      'getResetPasswordLink',
       'invitePerson',
+      'loadGuests',
       'loadPeople',
       'newPerson',
       'newPersonAndInvite',
       'removePeopleSearch',
+      'restorePerson',
       'savePeopleSearch',
       'setPeopleSearch',
       'uploadPersonAvatar',
       'uploadPersonFile'
     ]),
+
+    ensureGuestsLoaded() {
+      if (!this.isGuestTab) return
+      this.loadGuests().catch(console.error)
+    },
 
     renderImport(data, mode) {
       this.loading.importing = true
@@ -498,6 +632,7 @@ export default {
       form.id = this.personToEdit.id
       this.loading.invite = true
       this.success.invite = false
+      this.success.inviteLinkCopied = false
       this.errors.invite = false
       this.invitePerson(form)
         .then(() => {
@@ -512,6 +647,28 @@ export default {
         .finally(() => {
           this.loading.invite = false
         })
+    },
+
+    async confirmCopyInviteLink(form) {
+      form.id = this.personToEdit.id
+      this.loading.inviteLink = true
+      this.success.inviteLinkCopied = false
+      this.success.invite = false
+      this.errors.inviteLink = false
+      try {
+        const result = await this.getResetPasswordLink(form)
+        const link =
+          typeof result === 'string'
+            ? result
+            : (result.link ?? result.url ?? result.reset_password_link)
+        await navigator.clipboard.writeText(link)
+        this.success.inviteLinkCopied = true
+      } catch (err) {
+        console.error(err)
+        this.errors.inviteLink = true
+      } finally {
+        this.loading.inviteLink = false
+      }
     },
 
     confirmDeletePeople() {
@@ -556,6 +713,36 @@ export default {
     onDeleteClicked(person) {
       this.personToDelete = person
       this.modals.del = true
+    },
+
+    onArchiveClicked(person) {
+      this.personToArchive = person
+      this.errors.archiveGuest = false
+      this.modals.archiveGuest = true
+    },
+
+    async confirmArchiveGuest() {
+      if (!this.personToArchive) return
+      this.loading.archiveGuest = true
+      this.errors.archiveGuest = false
+      try {
+        await this.archivePerson(this.personToArchive)
+        this.modals.archiveGuest = false
+        this.personToArchive = null
+      } catch (err) {
+        console.error(err)
+        this.errors.archiveGuest = true
+      } finally {
+        this.loading.archiveGuest = false
+      }
+    },
+
+    async onRestoreClicked(person) {
+      try {
+        await this.restorePerson(person)
+      } catch (err) {
+        console.error(err)
+      }
     },
 
     onEditClicked(person) {
@@ -624,11 +811,14 @@ export default {
         this.loading.createAndInvite = false
         this.errors.edit = false
         this.errors.invite = false
+        this.errors.inviteLink = false
         this.errors.invalidEmailDomain = false
         this.errors.userLimit = false
         this.loading.edit = false
         this.loading.invite = false
+        this.loading.inviteLink = false
         this.success.invite = false
+        this.success.inviteLinkCopied = false
       }
     },
 
@@ -646,6 +836,7 @@ export default {
 
     '$route.query.tab'() {
       this.activeTab = this.$route.query.tab || 'active'
+      this.ensureGuestsLoaded()
     },
 
     '$route.query.search'(search) {

@@ -5,33 +5,42 @@
         <thead class="datatable-head">
           <tr>
             <th scope="col" class="user datatable-row-header">
-              {{ isBots ? $t('bots.bots') : $t('people.persons') }}
+              {{
+                isBots
+                  ? $t('bots.bots')
+                  : isGuests
+                    ? $t('people.guests')
+                    : $t('people.persons')
+              }}
             </th>
-            <th scope="col" class="phone" v-if="!isBots">
+            <th scope="col" class="phone" v-if="!isBots && !isGuests">
               {{ $t('people.list.phone') }}
             </th>
             <th scope="col" class="expiration" v-if="isBots">
               {{ $t('people.list.expiration') }}
             </th>
-            <th scope="col" class="role">
+            <th scope="col" class="role" v-if="!isGuests">
               {{ $t('people.list.role') }}
             </th>
-            <th scope="col" class="departments">
+            <th scope="col" class="departments" v-if="!isGuests">
               {{ $t('people.list.departments') }}
             </th>
-            <th scope="col" class="studio" v-if="!isBots">
+            <th scope="col" class="studio" v-if="!isBots && !isGuests">
               {{ $t('people.list.studio') }}
             </th>
-            <th scope="col" class="contract" v-if="!isBots">
+            <th scope="col" class="country" v-if="!isBots && !isGuests">
+              {{ $t('people.list.country') }}
+            </th>
+            <th scope="col" class="contract" v-if="!isBots && !isGuests">
               {{ $t('people.list.contract') }}
             </th>
-            <th scope="col" class="position" v-if="!isBots">
+            <th scope="col" class="position" v-if="!isBots && !isGuests">
               {{ $t('people.list.position') }}
             </th>
-            <th scope="col" class="seniority" v-if="!isBots">
+            <th scope="col" class="seniority" v-if="!isBots && !isGuests">
               {{ $t('people.list.seniority') }}
             </th>
-            <th scope="col" class="salary" v-if="!isBots">
+            <th scope="col" class="salary" v-if="!isBots && !isGuests">
               {{ $t('people.fields.daily_salary') }}
             </th>
             <th scope="col" class="actions"></th>
@@ -48,7 +57,9 @@
               class="user datatable-row-header"
               :person="person"
             />
-            <td class="phone" v-if="!isBots">{{ person.phone }}</td>
+            <td class="phone" v-if="!isBots && !isGuests">
+              {{ person.phone }}
+            </td>
             <td
               class="expiration"
               :class="{
@@ -60,44 +71,56 @@
               {{ person.expiration_date }}
               <alert-triangle-icon class="icon mr05" />
             </td>
-            <td class="role">{{ $t(`people.role.${person.role}`) }}</td>
+            <td class="role" v-if="!isGuests">
+              {{ $t(`people.role.${person.role}`) }}
+            </td>
             <department-names-cell
               class="departments"
               :departments="person.departments"
+              v-if="!isGuests"
             />
-            <td class="studio" v-if="!isBots">
+            <td class="studio" v-if="!isBots && !isGuests">
               <studio-name :studio="person.studio" v-if="person.studio" />
             </td>
-            <td class="contract" v-if="!isBots">
+            <td class="country" v-if="!isBots && !isGuests">
+              {{ countryName(person.country) }}
+            </td>
+            <td class="contract" v-if="!isBots && !isGuests">
               {{ $t(`people.contract.${person.contract_type}`) }}
             </td>
-            <td class="position" v-if="!isBots">
+            <td class="position" v-if="!isBots && !isGuests">
               {{
                 person.position ? $t(`people.position.${person.position}`) : ''
               }}
             </td>
-            <td class="seniority" v-if="!isBots">
+            <td class="seniority" v-if="!isBots && !isGuests">
               {{
                 person.seniority
                   ? $t(`people.seniority.${person.seniority}`)
                   : ''
               }}
             </td>
-            <td class="salary" v-if="!isBots">
+            <td class="salary" v-if="!isBots && !isGuests">
               {{ person.daily_salary }}
             </td>
             <row-actions-cell
               class="datatable-row-footer"
-              :hide-avatar="!person.active"
-              :hide-change-password="isBots || !person.active"
-              :hide-delete="person.active"
+              :entry="person"
+              :hide-archive="!isGuests || isArchivedGuests"
+              :hide-avatar="isGuests || !person.active"
+              :hide-change-password="isBots || isGuests || !person.active"
+              :hide-delete="isGuests ? !isArchivedGuests : person.active"
+              :hide-edit="isGuests"
               :hide-refresh="!isBots || !person.active"
+              :hide-restore="!isArchivedGuests"
+              @archive-clicked="$emit('archive-clicked', person)"
               @avatar-clicked="$emit('avatar-clicked', person)"
               @change-password-clicked="
                 $emit('change-password-clicked', person)
               "
               @edit-clicked="$emit('edit-clicked', person)"
               @refresh-clicked="$emit('refresh-clicked', person)"
+              @restore-clicked="$emit('restore-clicked', person)"
               @delete-clicked="$emit('delete-clicked', person)"
               v-if="isCurrentUserAdmin"
             />
@@ -107,7 +130,7 @@
       </table>
     </div>
 
-    <table-info :is-loading="isLoading" :is-error="isError" />
+    <table-info :is-loading="isLoading" :is-error="isError" :cells="9" />
 
     <p class="has-text-centered footer-info" v-if="!isLoading">
       {{ nbUsersDetails }}
@@ -118,6 +141,9 @@
 <script>
 import { AlertTriangleIcon } from 'lucide-vue-next'
 import { mapGetters } from 'vuex'
+
+import { getCountryName } from '@/lib/countries'
+import { localeCode } from '@/lib/lang'
 
 import { grabListMixin } from '@/components/mixins/grablist'
 import { domMixin } from '@/components/mixins/dom'
@@ -147,6 +173,10 @@ export default {
       type: Array,
       default: () => []
     },
+    isArchivedGuests: {
+      type: Boolean,
+      default: false
+    },
     isBots: {
       type: Boolean,
       default: false
@@ -155,18 +185,28 @@ export default {
       type: Boolean,
       default: false
     },
+    isGuests: {
+      type: Boolean,
+      default: false
+    },
     isLoading: {
       type: Boolean,
       default: false
+    },
+    seatsRemaining: {
+      type: Number,
+      default: null
     }
   },
 
   emits: [
+    'archive-clicked',
     'avatar-clicked',
     'change-password-clicked',
     'delete-clicked',
     'edit-clicked',
-    'refresh-clicked'
+    'refresh-clicked',
+    'restore-clicked'
   ],
 
   data() {
@@ -207,15 +247,29 @@ export default {
 
     nbUsersDetails() {
       const nbUsers = this.entries.length
-      const labelUsers = this.$tc(
-        this.isBots ? 'bots.bots' : 'people.persons',
-        nbUsers
-      )
+      const key = this.isBots
+        ? 'bots.bots'
+        : this.isGuests
+          ? 'people.guests'
+          : 'people.persons'
+      const labelUsers = this.$tc(key, nbUsers)
+      if (!this.isBots && !this.isGuests && this.seatsRemaining !== null) {
+        const labelRemaining = this.$tc(
+          'people.seats_remaining',
+          this.seatsRemaining,
+          { count: this.seatsRemaining }
+        )
+        return `${nbUsers} ${labelUsers} (${labelRemaining})`
+      }
       return `${nbUsers} ${labelUsers}`
     }
   },
 
   methods: {
+    countryName(country) {
+      return getCountryName(country, localeCode.value)
+    },
+
     isExpired(expirationDate) {
       return expirationDate < this.today
     },
@@ -279,6 +333,11 @@ export default {
   min-width: 180px;
 }
 
+.country {
+  width: 160px;
+  min-width: 160px;
+}
+
 .contract {
   width: 160px;
   min-width: 160px;
@@ -302,5 +361,128 @@ export default {
 
 .actions {
   min-width: 150px;
+}
+
+.data-list {
+  margin-top: 0;
+}
+
+@media screen and (max-width: 768px) {
+  .datatable-wrapper {
+    overflow-x: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  table.datatable {
+    display: block;
+    background: transparent;
+  }
+
+  .datatable-head {
+    display: none;
+  }
+
+  .datatable-body {
+    display: block;
+  }
+
+  .data-list .datatable .datatable-row,
+  .data-list .datatable .datatable-row:nth-child(even),
+  .data-list .datatable .datatable-row:hover,
+  .data-list .datatable .datatable-row:last-child {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'user role'
+      'departments departments'
+      'expiration expiration';
+    align-items: center;
+    column-gap: 0.5em;
+    row-gap: 0.25em;
+    padding: 0.5em;
+    margin-bottom: 0.5em;
+    background-color: var(--background) !important;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .data-list .datatable .datatable-row td,
+  .data-list .datatable .datatable-row :deep(td),
+  .data-list .datatable .datatable-row:last-child td,
+  .data-list .datatable .datatable-row:last-child:nth-child(even) td,
+  .data-list .datatable .datatable-row:last-child:hover td {
+    display: block;
+    width: auto;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background-color: transparent !important;
+  }
+
+  .user {
+    grid-area: user;
+    width: auto;
+    min-width: 0;
+  }
+
+  .role {
+    grid-area: role;
+    width: auto;
+    min-width: 0;
+    color: var(--text-alt);
+    font-size: 0.9em;
+  }
+
+  .departments {
+    grid-area: departments;
+    width: auto;
+    min-width: 0;
+  }
+
+  .expiration {
+    grid-area: expiration;
+    width: auto;
+    min-width: 0;
+    font-size: 0.9em;
+  }
+
+  :deep(.actions) {
+    display: none !important;
+  }
+
+  :deep(.entity-thumbnail) {
+    box-shadow: none;
+  }
+
+  :deep(.datatable-row-footer) {
+    border-left: 0;
+
+    &::before {
+      display: none;
+    }
+  }
+
+  :deep(.datatable-row-header) {
+    border-right: 0;
+
+    &::after {
+      display: none;
+    }
+  }
+
+  .phone,
+  .studio,
+  .country,
+  .contract,
+  .position,
+  .seniority,
+  .salary {
+    display: none;
+  }
+
+  .footer-info {
+    display: none;
+  }
 }
 </style>

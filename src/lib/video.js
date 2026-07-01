@@ -1,35 +1,39 @@
+const PRECISION_FACTOR = 10000
+const DEFAULT_FPS = 25
+
+const roundPrecision = value =>
+  Math.round(value * PRECISION_FACTOR) / PRECISION_FACTOR
+
 /*
  * Make sure that given time matches a frame in the video
  */
 export const roundToFrame = (time, fps) => {
-  const frameFactor = Math.round((1 / fps) * 10000) / 10000
+  const frameFactor = roundPrecision(1 / fps)
   const frameNumber = Math.round(time / frameFactor)
-  let roundedTime = frameNumber * frameFactor
-  roundedTime = Math.round(roundedTime * 10000) / 10000
-  return roundedTime
+  return roundPrecision(frameNumber * frameFactor)
 }
 
 export const ceilToFrame = (time, fps) => {
-  const frameFactor = Math.round((1 / fps) * 10000) / 10000
+  const frameFactor = roundPrecision(1 / fps)
   const frameNumber = Math.ceil(time / frameFactor)
-  let roundedTime = frameNumber * frameFactor
-  roundedTime = Math.ceil(roundedTime * 10000) / 10000
-  return roundedTime
+  return (
+    Math.ceil(frameNumber * frameFactor * PRECISION_FACTOR) / PRECISION_FACTOR
+  )
 }
 
 export const floorToFrame = (time, fps) => {
-  const frameFactor = Math.round((1 / fps) * 10000) / 10000
+  const frameFactor = roundPrecision(1 / fps)
   const frameNumber = Math.floor(time / frameFactor)
-  let roundedTime = frameNumber * frameFactor
-  roundedTime = Math.floor(roundedTime * 10000) / 10000
-  return roundedTime
+  return (
+    Math.floor(frameNumber * frameFactor * PRECISION_FACTOR) / PRECISION_FACTOR
+  )
 }
 
 /*
  * Turn a frame number into seconds depending on context.
  */
 export const frameToSeconds = (nbFrames, production, shot) => {
-  let fps = 25
+  let fps = DEFAULT_FPS
   if (shot && shot.fps) fps = shot.fps
   if (production && production.fps) fps = production.fps
   return Math.round((nbFrames / fps) * 1000) / 1000
@@ -39,17 +43,17 @@ export const frameToSeconds = (nbFrames, production, shot) => {
  * Display time in a timecode format.
  */
 export const formatTime = (rawTime, fps) => {
-  if (rawTime < 0) rawTime = 0
+  if (!Number.isFinite(rawTime) || rawTime < 0) rawTime = 0
 
   const time = new Date(1000 * rawTime).toISOString()
   const milliseconds = parseInt(time.substring(20, 23))
-  const frameDuration = Math.round((1 / fps) * 10000) / 10000
+  const frameDuration = roundPrecision(1 / fps)
   const frame = `${Math.round(milliseconds / (1000 * frameDuration))}`.padStart(
     2,
     '0'
   )
   try {
-    return `${time.substr(11, 8)}:${frame}`
+    return `${time.substring(11, 19)}:${frame}`
   } catch (err) {
     console.error(err)
     return '00:00:00:00'
@@ -59,7 +63,7 @@ export const formatTime = (rawTime, fps) => {
 /**
  * Get timecode from frame number.
  */
-export const formatToTimecode = (frame, fps = 25) => {
+export const formatToTimecode = (frame, fps = DEFAULT_FPS) => {
   if (!frame || frame < 0) frame = 0
   const hours = Math.floor(frame / fps / 3600)
     .toString()

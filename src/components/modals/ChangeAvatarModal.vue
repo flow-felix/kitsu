@@ -1,117 +1,92 @@
 <template>
-  <div
-    :class="{
-      modal: true,
-      'is-active': active
-    }"
-  >
-    <div class="modal-background" @click="$emit('cancel')"></div>
+  <base-modal :active="active" :title="title" @cancel="$emit('cancel')">
+    <p class="explanation">{{ $t('profile.avatar.intro') }}</p>
 
-    <div class="modal-content">
-      <div class="box content">
-        <h1 class="title">
-          {{ title }}
-        </h1>
+    <image-cropper
+      ref="cropperRef"
+      :shape="shape"
+      @fileselected="onFileSelected"
+    />
 
-        <p>
-          {{ $t('main.csv.select_file') }}
-        </p>
+    <p class="error" v-if="isError">
+      {{ $t('profile.avatar.error_upload') }}
+    </p>
 
-        <file-upload
-          ref="uploadAvatarField"
-          :label="$t('main.csv.upload_file')"
-          @fileselected="onFileSelected"
-          accept=".png,.jpg,.jpeg"
-        />
-
-        <p class="error" v-if="isError">
-          {{ $t('profile.avatar.error_upload') }}
-        </p>
-
-        <modal-footer
-          :error-text="$t('productions.metadata.error')"
-          :is-loading="isLoading"
-          :is-disabled="!formData"
-          @confirm="onConfirmClicked"
-          @cancel="$emit('cancel')"
-        />
-      </div>
-    </div>
-  </div>
+    <modal-footer
+      :error-text="$t('productions.metadata.error')"
+      :is-loading="isLoading"
+      :is-disabled="!hasFile"
+      @confirm="onConfirmClicked"
+      @cancel="$emit('cancel')"
+    />
+  </base-modal>
 </template>
 
-<script>
-import { modalMixin } from '@/components/modals/base_modal'
+<script setup>
+import { ref, toRef, watch } from 'vue'
 
-import FileUpload from '@/components/widgets/FileUpload.vue'
+import { useModal } from '@/composables/modal'
+
+import BaseModal from '@/components/modals/BaseModal.vue'
 import ModalFooter from '@/components/modals/ModalFooter.vue'
+import ImageCropper from '@/components/widgets/ImageCropper.vue'
 
-export default {
-  name: 'change-avatar-modal',
-
-  mixins: [modalMixin],
-
-  components: {
-    FileUpload,
-    ModalFooter
+const props = defineProps({
+  active: { type: Boolean, default: false },
+  isError: { type: Boolean, default: false },
+  isLoading: { type: Boolean, default: false },
+  shape: {
+    type: String,
+    default: 'circle',
+    validator: value => ['circle', 'rounded'].includes(value)
   },
+  title: { type: String, default: '' }
+})
 
-  props: {
-    active: {
-      type: Boolean,
-      default: false
-    },
-    isError: {
-      type: Boolean,
-      default: false
-    },
-    isLoading: {
-      type: Boolean,
-      default: false
-    },
-    title: {
-      type: String,
-      default: ''
-    }
-  },
+const emit = defineEmits(['cancel', 'confirm', 'fileselected'])
 
-  emits: ['cancel', 'confirm', 'fileselected'],
+useModal(toRef(props, 'active'), emit)
 
-  data() {
-    return {
-      formData: null
-    }
-  },
+const cropperRef = ref(null)
+const hasFile = ref(false)
+const lastFormData = ref(null)
 
-  methods: {
-    onFileSelected(formData) {
-      this.formData = formData
-      this.$emit('fileselected', formData)
-    },
+const onFileSelected = formData => {
+  hasFile.value = true
+  lastFormData.value = formData
+  emit('fileselected', formData)
+}
 
-    onConfirmClicked() {
-      this.$emit('confirm', this.formData)
-    }
-  },
-  watch: {
-    active() {
-      this.formData = null
-      this.$refs.uploadAvatarField.reset()
-    }
+const onConfirmClicked = async () => {
+  try {
+    const cropped = await cropperRef.value?.cropToFormData()
+    emit('confirm', cropped ?? lastFormData.value)
+  } catch (err) {
+    console.error(err)
+    emit('confirm', lastFormData.value)
   }
 }
+
+watch(
+  () => props.active,
+  () => {
+    cropperRef.value?.reset()
+    hasFile.value = false
+    lastFormData.value = null
+  }
+)
 </script>
 
 <style lang="scss" scoped>
-.modal-content .box p.text {
-  margin-bottom: 1em;
+.explanation {
+  color: var(--text-alt);
+  margin-bottom: 1.25rem;
+  text-align: center;
 }
 
 .error {
-  margin-top: 1em;
-}
-
-.description {
-  margin-bottom: 1em;
+  color: $red;
+  margin-top: 1rem;
+  text-align: center;
 }
 </style>

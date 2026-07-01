@@ -1,12 +1,12 @@
 import moment from 'moment-timezone'
-import lang from '@/lib/lang'
+import lang, { localeCode } from '@/lib/lang'
 import timezone from '@/lib/timezone'
 
 import i18n from '@/lib/i18n'
 import store from '@/store'
 
 class ColorHash {
-  constructor (colorData) {
+  constructor () {
   }
 
   hex (str) {
@@ -14,7 +14,7 @@ class ColorHash {
   }
 }
 
-global.ColorHash = ColorHash
+globalThis.ColorHash = ColorHash
 
 describe('lang', () => {
   store.commit('USER_LOGIN', {
@@ -26,6 +26,18 @@ describe('lang', () => {
     lang.setLocale('french')
     expect(moment.locale()).toEqual('fr')
     expect(i18n.global.locale).toEqual('fr')
+  })
+
+  test('localeCode tracks the active language with an Intl-safe code', () => {
+    lang.setLocale('en_US')
+    expect(localeCode.value).toEqual('en')
+
+    // Mapped locale keeps its region (Traditional Chinese).
+    lang.setLocale('zh_Hant_TW')
+    expect(localeCode.value).toEqual('zh-tw')
+
+    lang.setLocale('fr_FR')
+    expect(localeCode.value).toEqual('fr')
   })
 })
 

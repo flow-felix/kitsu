@@ -3,7 +3,9 @@ import assetTypeStore from '@/store/modules/assettypes'
 import taskStatusStore from '@/store/modules/taskstatus'
 import taskTypeStore from '@/store/modules/tasktypes'
 
+import client from '@/store/api/client'
 import productionApi from '@/store/api/productions.js'
+
 import {
   ADD_METADATA_DESCRIPTOR_END,
   ADD_PRODUCTION,
@@ -310,14 +312,14 @@ describe('Productions store', () => {
         }))
       }
       let mockCommit = vi.fn()
-      productionApi.getProduction = vi.fn(productionId => Promise.resolve({ id: '1' }))
+      productionApi.getProduction = vi.fn(() => Promise.resolve({ id: '1' }))
       await store.actions.loadProduction({ commit: mockCommit, state }, 'production-id')
       expect(productionApi.getProduction).toBeCalledTimes(1)
       expect(mockCommit).toBeCalledTimes(1)
       expect(mockCommit).toHaveBeenNthCalledWith(1, UPDATE_PRODUCTION, { id: '1' })
 
       mockCommit = vi.fn()
-      productionApi.getProduction = vi.fn(productionId => Promise.resolve({ id: '5' }))
+      productionApi.getProduction = vi.fn(() => Promise.resolve({ id: '5' }))
       await store.actions.loadProduction({ commit: mockCommit, state }, 'production-id')
       expect(productionApi.getProduction).toBeCalledTimes(1)
       expect(mockCommit).toBeCalledTimes(1)
@@ -325,7 +327,7 @@ describe('Productions store', () => {
 
       /*
       mockCommit = vi.fn()
-      productionApi.getProduction = vi.fn(productionId => Promise.reject(new Error('error')))
+      productionApi.getProduction = vi.fn(() => Promise.reject(new Error('error')))
       await store.actions.loadProduction({ commit: mockCommit, state }, 'production-id')
       expect(productionApi.getProduction).toBeCalledTimes(1)
       expect(mockCommit).toBeCalledTimes(0)
@@ -333,54 +335,249 @@ describe('Productions store', () => {
     })
 
     test('newProduction', async () => {
+      const descriptor = {
+        id: 'descriptor-1',
+        entity_type: 'Project',
+        name: 'Studio Location',
+        field_name: 'studio_location'
+      }
       let mockCommit = vi.fn()
-      productionApi.newProduction = vi.fn(productionId => Promise.resolve({ id: '1' }))
-      await store.actions.newProduction({ commit: mockCommit, state: null }, 'production-id')
+      const mockDispatch = vi.fn(() => Promise.resolve())
+      const getters = { mergedProjectMetadataDescriptors: [descriptor] }
+      productionApi.newProduction = vi.fn(() => Promise.resolve({ id: '1' }))
+      await store.actions.newProduction(
+        { commit: mockCommit, dispatch: mockDispatch, getters },
+        'production-id'
+      )
       expect(productionApi.newProduction).toBeCalledTimes(1)
       expect(mockCommit).toBeCalledTimes(1)
       expect(mockCommit).toHaveBeenNthCalledWith(1, ADD_PRODUCTION, { id: '1' })
+      expect(mockDispatch).toHaveBeenCalledWith(
+        'ensureProjectMetadataDescriptor',
+        { production: { id: '1' }, descriptor }
+      )
 
       mockCommit = vi.fn()
-      productionApi.newProduction = vi.fn(productionId => Promise.reject(new Error('error')))
+      productionApi.newProduction = vi.fn(() => Promise.reject(new Error('error')))
       try {
-        await store.actions.newProduction({ commit: mockCommit, state: null }, 'production-id')
-      } catch (e) {
+        await store.actions.newProduction(
+          { commit: mockCommit, dispatch: mockDispatch, getters },
+          'production-id'
+        )
+      } catch {
         expect(productionApi.newProduction).toBeCalledTimes(1)
         expect(mockCommit).toBeCalledTimes(0)
       }
     })
 
-    test('editProduction', async () => {
-      let mockCommit = vi.fn()
-      productionApi.updateProduction = vi.fn(productionId => Promise.resolve({ id: '1' }))
-      await store.actions.editProduction({ commit: mockCommit, state: null }, 'production-id')
-      expect(productionApi.updateProduction).toBeCalledTimes(1)
-      expect(mockCommit).toBeCalledTimes(1)
-      expect(mockCommit).toHaveBeenNthCalledWith(1, UPDATE_PRODUCTION, { id: '1' })
-
-      mockCommit = vi.fn()
-      productionApi.updateProduction = vi.fn(productionId => Promise.reject(new Error('error')))
-      try {
-        await store.actions.editProduction({ commit: mockCommit, state: null }, 'production-id')
-      } catch (e) {
-        expect(productionApi.updateProduction).toBeCalledTimes(1)
-        expect(mockCommit).toBeCalledTimes(0)
+    test('ensureProjectMetadataDescriptor', async () => {
+      const descriptor = {
+        id: 'descriptor-1',
+        entity_type: 'Project',
+        name: 'Studio Location',
+        field_name: 'studio_location',
+        data_type: 'string',
+        choices: [],
+        for_client: false,
+        departments: []
       }
+
+      // Owned: resolves with the production's own copy, no creation.
+      let mockDispatch = vi.fn()
+      const owned = { ...descriptor, id: 'descriptor-2' }
+      const result = await store.actions.ensureProjectMetadataDescriptor(
+        { dispatch: mockDispatch },
+        {
+          production: { id: 'production-1', descriptors: [owned] },
+          descriptor
+        }
+      )
+      expect(result).toBe(owned)
+      expect(mockDispatch).not.toHaveBeenCalled()
+
+      // Missing: creates the descriptor once, even for concurrent calls.
+      mockDispatch = vi.fn(() => Promise.resolve())
+      const production = { id: 'production-2', descriptors: [] }
+      await Promise.all([
+        store.actions.ensureProjectMetadataDescriptor(
+          { dispatch: mockDispatch },
+          { production, descriptor }
+        ),
+        store.actions.ensureProjectMetadataDescriptor(
+          { dispatch: mockDispatch },
+          { production, descriptor }
+        )
+      ])
+      expect(mockDispatch).toBeCalledTimes(1)
+      expect(mockDispatch).toHaveBeenCalledWith('addMetadataDescriptor', {
+        name: 'Studio Location',
+        data_type: 'string',
+        values: [],
+        for_client: false,
+        departments: [],
+        entity_type: 'Project',
+        projectId: 'production-2'
+      })
+
+      // Already owned server-side (e.g. project template): 400 is not a
+      // failure, other errors still reject.
+      mockDispatch = vi.fn(() =>
+        Promise.reject({ response: { status: 400 } })
+      )
+      await expect(
+        store.actions.ensureProjectMetadataDescriptor(
+          { dispatch: mockDispatch },
+          { production: { id: 'production-3', descriptors: [] }, descriptor }
+        )
+      ).resolves.toBeNull()
+
+      mockDispatch = vi.fn(() =>
+        Promise.reject({ response: { status: 500 } })
+      )
+      await expect(
+        store.actions.ensureProjectMetadataDescriptor(
+          { dispatch: mockDispatch },
+          { production: { id: 'production-4', descriptors: [] }, descriptor }
+        )
+      ).rejects.toEqual({ response: { status: 500 } })
+    })
+
+    test('addProjectMetadataDescriptorToAllProductions skips productions owning the field_name', async () => {
+      const mockCommit = vi.fn()
+      const state = {
+        productions: [
+          {
+            id: 'production-1',
+            descriptors: [
+              {
+                id: 'descriptor-1',
+                entity_type: 'Project',
+                name: 'studio location',
+                field_name: 'studio_location'
+              }
+            ]
+          },
+          { id: 'production-2', descriptors: [] }
+        ],
+        productionMap: new Map()
+      }
+      productionApi.addMetadataDescriptor = vi.fn((productionId, descriptor) =>
+        Promise.resolve({
+          ...descriptor,
+          id: 'descriptor-2',
+          project_id: productionId
+        })
+      )
+      await store.actions.addProjectMetadataDescriptorToAllProductions(
+        { commit: mockCommit, state },
+        { name: 'Studio Location', data_type: 'string' }
+      )
+      expect(productionApi.addMetadataDescriptor).toBeCalledTimes(1)
+      expect(productionApi.addMetadataDescriptor).toHaveBeenCalledWith(
+        'production-2',
+        { name: 'Studio Location', data_type: 'string' }
+      )
+    })
+
+    describe('editProduction', () => {
+      let updateProduction
+
+      beforeEach(() => {
+        updateProduction = vi
+          .spyOn(productionApi, 'updateProduction')
+          .mockResolvedValue({ id: '1' })
+      })
+
+      afterEach(() => {
+        updateProduction.mockRestore()
+      })
+
+      test('dispatches API call and commits UPDATE_PRODUCTION', async () => {
+        const state = {
+          productionMap: new Map(),
+          productions: [],
+          openProductions: []
+        }
+        const mockCommit = vi.fn()
+        await store.actions.editProduction(
+          { commit: mockCommit, state },
+          { id: '1', start_date: '2026-01-01' }
+        )
+        expect(updateProduction).toBeCalledTimes(1)
+        expect(mockCommit).toBeCalledTimes(1)
+        expect(mockCommit).toHaveBeenNthCalledWith(1, UPDATE_PRODUCTION, {
+          id: '1'
+        })
+      })
+
+      test('does not commit when API rejects', async () => {
+        const state = {
+          productionMap: new Map(),
+          productions: [],
+          openProductions: []
+        }
+        const mockCommit = vi.fn()
+        updateProduction.mockRejectedValue(new Error('error'))
+        await expect(
+          store.actions.editProduction(
+            { commit: mockCommit, state },
+            { id: '1', start_date: '2026-01-01' }
+          )
+        ).rejects.toThrow('error')
+        expect(updateProduction).toBeCalledTimes(1)
+        expect(mockCommit).toBeCalledTimes(0)
+      })
+
+      test('merges data.data with cached metadata', async () => {
+        const state = {
+          productionMap: new Map([
+            ['1', { id: '1', data: { existing: 'kept', other: 'kept' } }]
+          ]),
+          productions: [],
+          openProductions: []
+        }
+        await store.actions.editProduction(
+          { commit: vi.fn(), state },
+          { id: '1', data: { existing: 'updated' } }
+        )
+        expect(updateProduction).toHaveBeenCalledWith({
+          id: '1',
+          data: { existing: 'updated', other: 'kept' }
+        })
+      })
+
+      test('omits data when caller did not provide it', async () => {
+        const state = {
+          productionMap: new Map([
+            ['1', { id: '1', data: { should: 'not_be_sent' } }]
+          ]),
+          productions: [],
+          openProductions: []
+        }
+        await store.actions.editProduction(
+          { commit: vi.fn(), state },
+          { id: '1', start_date: '2026-01-01' }
+        )
+        expect(updateProduction).toHaveBeenCalledWith({
+          id: '1',
+          start_date: '2026-01-01'
+        })
+      })
     })
 
     test('deleteProduction', async () => {
       let mockCommit = vi.fn()
-      productionApi.deleteProduction = vi.fn(productionId => Promise.resolve({ id: '1' }))
+      productionApi.deleteProduction = vi.fn(() => Promise.resolve({ id: '1' }))
       await store.actions.deleteProduction({ commit: mockCommit, state: null }, 'production-id')
       expect(productionApi.deleteProduction).toBeCalledTimes(1)
       expect(mockCommit).toBeCalledTimes(1)
       expect(mockCommit).toHaveBeenNthCalledWith(1, REMOVE_PRODUCTION, 'production-id')
 
       mockCommit = vi.fn()
-      productionApi.deleteProduction = vi.fn(productionId => Promise.reject(new Error('error')))
+      productionApi.deleteProduction = vi.fn(() => Promise.reject(new Error('error')))
       try {
         await store.actions.deleteProduction({ commit: mockCommit, state: null }, 'production-id')
-      } catch (e) {
+      } catch {
         expect(productionApi.deleteProduction).toBeCalledTimes(1)
         expect(mockCommit).toBeCalledTimes(0)
       }
@@ -437,7 +634,7 @@ describe('Productions store', () => {
       productionApi.postAvatar = vi.fn(() => Promise.reject())
       try {
         await store.actions.uploadProductionAvatar({ commit: mockCommit, state }, 'production-id')
-      } catch (e) {
+      } catch {
         expect(productionApi.postAvatar).toBeCalledTimes(1)
         expect(mockCommit).toBeCalledTimes(0)
       }
@@ -546,14 +743,33 @@ describe('Productions store', () => {
 
     test('addMetadataDescriptor', async () => {
       let mockCommit = vi.fn()
+      const productionForMap = { id: '123', descriptors: [] }
       const state = {
-        currentProduction: { id: '123', descriptors: [{ field_name: 'descriptor', id: 1 }] }
+        currentProduction: { id: '123', descriptors: [{ field_name: 'descriptor', id: 1 }] },
+        productionMap: new Map([['123', productionForMap]]),
+        openProductions: [],
+        productions: []
       }
 
-      productionApi.addMetadataDescriptor = vi.fn()
-      store.actions.addMetadataDescriptor({ commit: mockCommit, state }, { field_name: 'new descriptor' })
+      const created = {
+        id: 'new-desc',
+        project_id: '123',
+        field_name: 'new descriptor'
+      }
+      productionApi.addMetadataDescriptor = vi.fn(() => Promise.resolve(created))
+      await store.actions.addMetadataDescriptor(
+        { commit: mockCommit, state },
+        { field_name: 'new descriptor' }
+      )
       expect(productionApi.addMetadataDescriptor).toBeCalledTimes(1)
-      expect(productionApi.addMetadataDescriptor).toHaveBeenNthCalledWith(1, '123', { field_name: 'new descriptor' })
+      expect(productionApi.addMetadataDescriptor).toHaveBeenNthCalledWith(1, '123', {
+        field_name: 'new descriptor'
+      })
+      expect(mockCommit).toBeCalledTimes(1)
+      expect(mockCommit).toHaveBeenNthCalledWith(1, ADD_METADATA_DESCRIPTOR_END, {
+        production: productionForMap,
+        descriptor: created
+      })
 
       const existingDescriptor = { field_name: 'new descriptor name', id: 1 }
       mockCommit = vi.fn()
@@ -578,7 +794,7 @@ describe('Productions store', () => {
       }
 
       const descriptor = { id: '456', field_name: 'descriptor name', project_id: '1' }
-      productionApi.getMetadataDescriptor = vi.fn((_, __) => Promise.resolve(descriptor))
+      productionApi.getMetadataDescriptor = vi.fn(() => Promise.resolve(descriptor))
       await store.actions.refreshMetadataDescriptor({ commit: mockCommit, state }, descriptor.id)
       expect(productionApi.getMetadataDescriptor).toBeCalledTimes(1)
       expect(productionApi.getMetadataDescriptor).toHaveBeenNthCalledWith(1, '123', descriptor.id)
@@ -587,7 +803,7 @@ describe('Productions store', () => {
 
       descriptor.id = '789'
       mockCommit = vi.fn()
-      productionApi.getMetadataDescriptor = vi.fn((_, __) => Promise.resolve(descriptor))
+      productionApi.getMetadataDescriptor = vi.fn(() => Promise.resolve(descriptor))
       await store.actions.refreshMetadataDescriptor({ commit: mockCommit, state }, descriptor.id)
       expect(productionApi.getMetadataDescriptor).toBeCalledTimes(1)
       expect(productionApi.getMetadataDescriptor).toHaveBeenNthCalledWith(1, '123', descriptor.id)
@@ -918,6 +1134,64 @@ describe('Productions store', () => {
       expect(store.helpers.isEmptyArray({ arrayName: null }, 'arrayName')).toBeTruthy()
       expect(store.helpers.isEmptyArray({ arrayName: [] }, 'arrayName')).toBeTruthy()
       expect(store.helpers.isEmptyArray({ arrayName: [1] }, 'arrayName')).toBeFalsy()
+    })
+  })
+
+  describe('API', () => {
+    describe('updateProduction', () => {
+      let pput
+
+      beforeEach(() => {
+        pput = vi.spyOn(client, 'pput').mockResolvedValue({ id: '1' })
+      })
+
+      afterEach(() => {
+        pput.mockRestore()
+      })
+
+      test('coerces string boolean fields to real booleans', () => {
+        productionApi.updateProduction({
+          id: '1',
+          is_clients_isolated: 'true',
+          is_preview_download_allowed: 'false',
+          is_set_preview_automated: true,
+          is_publish_default_for_artists: false
+        })
+        expect(pput).toHaveBeenCalledWith('/api/data/projects/1', {
+          is_clients_isolated: true,
+          is_preview_download_allowed: false,
+          is_set_preview_automated: true,
+          is_publish_default_for_artists: false
+        })
+      })
+
+      test('omits boolean fields the caller did not provide', () => {
+        productionApi.updateProduction({
+          id: '1',
+          start_date: '2026-01-01'
+        })
+        expect(pput).toHaveBeenCalledWith('/api/data/projects/1', {
+          start_date: '2026-01-01'
+        })
+      })
+
+      // Guards the original bug: an explicitly `undefined` boolean must not be
+      // coerced to `false`, otherwise a partial spread with missing flags
+      // would silently reset them server-side.
+      test('does not coerce explicitly undefined booleans', () => {
+        productionApi.updateProduction({
+          id: '1',
+          is_clients_isolated: true,
+          is_preview_download_allowed: undefined,
+          is_set_preview_automated: undefined,
+          is_publish_default_for_artists: undefined
+        })
+        const [, payload] = pput.mock.calls[0]
+        expect(payload.is_clients_isolated).toBe(true)
+        expect(payload.is_preview_download_allowed).toBeUndefined()
+        expect(payload.is_set_preview_automated).toBeUndefined()
+        expect(payload.is_publish_default_for_artists).toBeUndefined()
+      })
     })
   })
 })

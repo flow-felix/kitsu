@@ -107,7 +107,7 @@
         </ol>
       </li>
     </ol>
-    <table-info :is-loading="isLoading" :is-error="isError" />
+    <table-info :is-loading="isLoading" :is-error="isError" variant="kanban" />
     <add-preview-modal
       ref="add-preview-modal"
       :active="modals.addPreview"
@@ -253,7 +253,7 @@ export default {
     },
 
     getSortedPeople(personIds) {
-      const people = personIds.map(id => this.personMap.get(id))
+      const people = personIds.map(id => this.personMap.get(id)).filter(Boolean)
       return sortPeople(people)
     },
 

@@ -16,7 +16,7 @@
       <table-metadata-header-menu
         ref="headerMetadataMenu"
         :is-edit-allowed="isCurrentUserManager"
-        :is-sticked="stickedColumns[lastMetadaDataHeaderMenuDisplayed]"
+        :is-sticked="stickedColumns[lastMetadataHeaderMenuDisplayed]"
         @edit-clicked="onEditMetadataClicked()"
         @delete-clicked="onDeleteMetadataClicked()"
         @sort-by-clicked="onSortByMetadataClicked()"
@@ -60,9 +60,6 @@
                   offsets['editor-' + j] ? `${offsets['editor-' + j]}px` : '0'
                 "
                 is-stick
-                :style="{
-                  'z-index': 1001
-                }"
                 @show-metadata-header-menu="
                   event => showMetadataHeaderMenu(descriptor.id, event)
                 "
@@ -189,7 +186,7 @@
                 }"
                 namespace="sequences"
                 v-model="metadataDisplayHeaders"
-                v-show="columnSelectorDisplayed"
+                v-model:is-open="columnSelectorDisplayed"
                 v-if="displaySettings.showInfos"
               />
 
@@ -449,7 +446,7 @@
       </table>
     </div>
 
-    <table-info :is-loading="isLoading" :is-error="isError" />
+    <table-info :is-loading="isLoading" :is-error="isError" big-cells />
 
     <div
       class="has-text-centered"
@@ -566,7 +563,7 @@ export default {
       type: 'sequence',
       hiddenColumns: {},
       lastHeaderMenuDisplayed: null,
-      lastMetadaDataHeaderMenuDisplayed: null,
+      lastMetadataHeaderMenuDisplayed: null,
       lastHeaderMenuDisplayedIndexInGrid: null,
       lastSelectedSequence: null,
       lastSelection: null,
@@ -673,10 +670,7 @@ export default {
     ...mapActions(['setSequenceSelection']),
 
     isSelected(lineIndex, columnIndex) {
-      return (
-        this.sequenceSelectionGrid[lineIndex] &&
-        this.sequenceSelectionGrid[lineIndex][columnIndex]
-      )
+      return this.sequenceSelectionGrid.has(`${lineIndex}-${columnIndex}`)
     },
 
     sequencePath(sequenceId) {
@@ -752,7 +746,7 @@ th.actions {
   color: inherit;
 }
 
-.name.sequence-name {
+thead .name.sequence-name {
   min-width: 110px;
   width: 110px;
 }
@@ -851,7 +845,6 @@ input[type='number'] {
 
 td.metadata-descriptor {
   height: 3.1rem;
-  max-width: 120px;
   padding: 0;
 }
 

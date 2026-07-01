@@ -46,11 +46,22 @@
 
     <button
       class="button"
+      :title="$t('row_actions.archive')"
+      data-test="button-archive"
+      tabindex="-1"
+      @click="$emit('archive-clicked')"
+      v-if="!hideArchive && !entry.canceled"
+    >
+      <archive-icon class="icon is-small" />
+    </button>
+
+    <button
+      class="button"
       :title="$t('row_actions.restore')"
       data-test="button-restore"
       tabindex="-1"
       @click="$emit('restore-clicked')"
-      v-if="entry.canceled"
+      v-if="!hideRestore || entry.canceled"
     >
       <rotate-ccw-icon class="icon is-small" />
     </button>
@@ -90,10 +101,9 @@
   </td>
 </template>
 
-<script>
-import { mapGetters } from 'vuex'
-
+<script setup>
 import {
+  ArchiveIcon,
   CameraIcon,
   ClockIcon,
   EditIcon,
@@ -102,65 +112,34 @@ import {
   RotateCcwIcon,
   TrashIcon
 } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { useStore } from 'vuex'
 
-export default {
-  name: 'row-actions-cell',
+defineProps({
+  entry: { type: Object, default: () => ({}) },
+  hideArchive: { type: Boolean, default: true },
+  hideAvatar: { type: Boolean, default: true },
+  hideChangePassword: { type: Boolean, default: true },
+  hideDelete: { type: Boolean, default: false },
+  hideEdit: { type: Boolean, default: false },
+  hideHistory: { type: Boolean, default: true },
+  hideRefresh: { type: Boolean, default: true },
+  hideRestore: { type: Boolean, default: true }
+})
 
-  components: {
-    CameraIcon,
-    ClockIcon,
-    EditIcon,
-    KeyIcon,
-    RefreshCwIcon,
-    RotateCcwIcon,
-    TrashIcon
-  },
+defineEmits([
+  'archive-clicked',
+  'avatar-clicked',
+  'change-password-clicked',
+  'delete-clicked',
+  'edit-clicked',
+  'history-clicked',
+  'refresh-clicked',
+  'restore-clicked'
+])
 
-  props: {
-    entry: {
-      type: Object,
-      default: () => ({})
-    },
-    hideAvatar: {
-      type: Boolean,
-      default: true
-    },
-    hideChangePassword: {
-      type: Boolean,
-      default: true
-    },
-    hideDelete: {
-      type: Boolean,
-      default: false
-    },
-    hideEdit: {
-      type: Boolean,
-      default: false
-    },
-    hideHistory: {
-      type: Boolean,
-      default: true
-    },
-    hideRefresh: {
-      type: Boolean,
-      default: true
-    }
-  },
-
-  emits: [
-    'avatar-clicked',
-    'change-password-clicked',
-    'delete-clicked',
-    'edit-clicked',
-    'history-clicked',
-    'refresh-clicked',
-    'restore-clicked'
-  ],
-
-  computed: {
-    ...mapGetters(['isCurrentUserAdmin'])
-  }
-}
+const store = useStore()
+const isCurrentUserAdmin = computed(() => store.getters.isCurrentUserAdmin)
 </script>
 
 <style lang="scss" scoped>

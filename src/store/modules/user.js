@@ -6,7 +6,6 @@ import { sortTasks, sortByName } from '@/lib/sorting'
 import { indexSearch, buildTaskIndex } from '@/lib/indexing'
 import { getKeyWords } from '@/lib/filtering'
 import { populateTask } from '@/lib/models'
-import { buildSelectionGrid, clearSelectionGrid } from '@/lib/selection'
 
 import {
   coercePublicKeyFromJSON,
@@ -73,6 +72,7 @@ import {
   LOAD_ASSET_TYPES_END,
   LOAD_PLUGINS_END,
   SET_NOTIFICATION_COUNT,
+  SET_USER_LIMIT,
   LOAD_OPEN_PRODUCTIONS_END,
   RESET_ALL,
   SET_CURRENT_PRODUCTION
@@ -112,8 +112,8 @@ const initialState = {
   displayedTodos: [],
   displayedDoneTasks: [],
   todosSearchText: '',
-  doneSelectionGrid: {},
-  todoSelectionGrid: {},
+  doneSelectionGrid: new Set(),
+  todoSelectionGrid: new Set(),
   todoSearchQueries: [],
   userFilters: {},
   userFilterGroups: {},
@@ -173,7 +173,7 @@ const getters = {
 const actions = {
   saveProfile({ commit, state }, payload) {
     commit(USER_SAVE_PROFILE_LOADING)
-    peopleApi
+    return peopleApi
       .updatePerson(payload.form)
       .then(() => {
         payload.form.id = state.user.id
@@ -182,6 +182,7 @@ const actions = {
       .catch(err => {
         console.error(err)
         commit(USER_SAVE_PROFILE_ERROR)
+        throw err
       })
   },
 
@@ -312,8 +313,8 @@ const actions = {
     return tasks
   },
 
-  async uploadAvatar({ commit, state }) {
-    await peopleApi.postAvatar(state.user.id, state.avatarFormData)
+  async uploadAvatar({ commit, state }, formData) {
+    await peopleApi.postAvatar(state.user.id, formData || state.avatarFormData)
     commit(UPLOAD_AVATAR_END, state.user.id)
   },
 
@@ -387,6 +388,7 @@ const actions = {
       commit(LOAD_STATUS_AUTOMATIONS_END, context.status_automations)
       commit(LOAD_ASSET_TYPES_END, context.asset_types)
       commit(SET_NOTIFICATION_COUNT, context.notification_count)
+      commit(SET_USER_LIMIT, context.user_limit)
       commit(LOAD_OPEN_PRODUCTIONS_END, context.projects)
       if (rootGetters.currentProduction) {
         commit(SET_CURRENT_PRODUCTION, rootGetters.currentProduction.id)
@@ -557,7 +559,7 @@ const mutations = {
       const taskStatus = helpers.getTaskStatus(task.task_status_id)
       task.taskStatus = taskStatus
     })
-    state.todoSelectionGrid = buildSelectionGrid(tasks.length, 1)
+    state.todoSelectionGrid = new Set()
     state.todos = sortTasks(tasks, taskTypeMap)
     state.todoMap = new Map(tasks.map(task => [task.id, task]))
     cache.todosIndex = buildTaskIndex(tasks)
@@ -579,7 +581,7 @@ const mutations = {
       const taskStatus = helpers.getTaskStatus(task.task_status_id)
       task.taskStatus = taskStatus
     })
-    state.doneSelectionGrid = buildSelectionGrid(tasks.length, 1)
+    state.doneSelectionGrid = new Set()
     cache.doneIndex = buildTaskIndex(tasks)
     cache.doneTasks = tasks
     state.displayedDoneTasks = tasks
@@ -645,39 +647,29 @@ const mutations = {
   },
 
   [ADD_SELECTED_TASK](state, validationInfo) {
-    if (
-      validationInfo.done &&
-      state.doneSelectionGrid &&
-      state.doneSelectionGrid[validationInfo.x]
-    ) {
-      state.doneSelectionGrid[validationInfo.x][validationInfo.y] = true
-    } else if (
-      state.todoSelectionGrid &&
-      state.todoSelectionGrid[validationInfo.x]
-    ) {
-      state.todoSelectionGrid[validationInfo.x][validationInfo.y] = true
+    const key = `${validationInfo.x}-${validationInfo.y}`
+    if (validationInfo.done) {
+      state.doneSelectionGrid.add(key)
+    } else {
+      state.todoSelectionGrid.add(key)
     }
   },
 
   [REMOVE_SELECTED_TASK](state, validationInfo) {
-    if (
-      validationInfo.done &&
-      state.doneSelectionGrid &&
-      state.doneSelectionGrid[validationInfo.x]
-    ) {
-      state.doneSelectionGrid[validationInfo.x][validationInfo.y] = false
-    } else if (
-      state.todoSelectionGrid &&
-      state.todoSelectionGrid[validationInfo.x]
-    ) {
-      state.todoSelectionGrid[validationInfo.x][validationInfo.y] = false
+    const key = `${validationInfo.x}-${validationInfo.y}`
+    if (validationInfo.done) {
+      state.doneSelectionGrid.delete(key)
+    } else {
+      state.todoSelectionGrid.delete(key)
     }
   },
 
   [CLEAR_SELECTED_TASKS](state) {
-    if (Object.keys(state.todoSelectionGrid).length > 0) {
-      state.todoSelectionGrid = clearSelectionGrid(state.todoSelectionGrid)
-      state.doneSelectionGrid = clearSelectionGrid(state.doneSelectionGrid)
+    for (const key of state.todoSelectionGrid) {
+      state.todoSelectionGrid.delete(key)
+    }
+    for (const key of state.doneSelectionGrid) {
+      state.doneSelectionGrid.delete(key)
     }
   },
 

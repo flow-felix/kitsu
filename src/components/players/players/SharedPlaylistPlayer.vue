@@ -1,0 +1,1275 @@
+<template>
+  <div class="shared-player playlist-player" ref="container">
+    <shared-playlist-header
+      :current-entity-display-name="currentEntityDisplayName"
+      :entity-count="entityList.length"
+      :guest-display-name="guestDisplayName"
+      :guest-id="guestId"
+      :playing-entity-index="playingEntityIndex"
+      :playlist-name="playlistName"
+      :project-name="projectName"
+      @logout="emit('logout')"
+      @next-entity="nextEntity"
+      @previous-entity="previousEntity"
+    />
+
+    <div class="player-row">
+      <div class="player-area">
+        <div class="video-container" ref="videoContainer" @contextmenu.prevent>
+          <multi-video-viewer
+            ref="rawPlayer"
+            class="raw-player"
+            :entities="entityList"
+            :current-preview-index="currentPreviewIndex"
+            :is-hd="isHd"
+            :is-repeating="isRepeating"
+            :muted="isMuted"
+            :panzoom="true"
+            :url-prefix="sharedApiPrefix"
+            @entity-change="onEntityChange"
+            @frame-update="onFrameUpdate"
+            @max-duration-update="onMaxDurationUpdate"
+            @panzoom-changed="onPanzoomChanged"
+            @panzoom-ready="onPanzoomReady"
+            @play-next="onPlayNext"
+            @video-loaded="onVideoLoaded"
+            v-show="isMovie && !loading"
+          />
+
+          <picture-viewer
+            ref="picturePlayer"
+            :big="true"
+            :default-height="pictureHeight"
+            :full-screen="false"
+            :light="false"
+            :margin-bottom="0"
+            :panzoom="true"
+            :preview="currentPreview"
+            :url-prefix="sharedApiPrefix"
+            high-quality
+            @panzoom-changed="onPanzoomChanged"
+            v-show="isPicture && !loading"
+          />
+
+          <sound-viewer
+            ref="soundPlayer"
+            :preview-url="downloadUrl"
+            @play-ended="pause"
+            v-if="isSound && !loading"
+          />
+
+          <object-viewer :preview-url="modelUrl" v-if="isModel && !loading" />
+
+          <pdf-viewer
+            :default-height="0"
+            :preview="currentPreview"
+            :url-prefix="sharedApiPrefix"
+            v-if="isPdf && !loading"
+          />
+
+          <markdown-viewer
+            :default-height="0"
+            :preview="currentPreview"
+            :url-prefix="sharedApiPrefix"
+            v-if="isMarkdown && !loading"
+          />
+
+          <diff-viewer
+            :default-height="0"
+            :preview="currentPreview"
+            :url-prefix="sharedApiPrefix"
+            v-if="isDiff && !loading"
+          />
+
+          <div
+            class="other-file"
+            v-if="isOtherFile && !loading && currentPreview"
+          >
+            <a
+              class="other-file-link"
+              :href="downloadUrl"
+              :download="downloadFileName"
+              target="_blank"
+              rel="noopener"
+            >
+              <download-icon class="icon" :size="20" />
+              <span>{{ $t('share.download_preview') }}</span>
+              <span class="other-file-extension">.{{ extension }}</span>
+            </a>
+          </div>
+
+          <shared-annotation-overlay
+            :annotations="currentAnnotations"
+            :current-frame="currentFrameNumber"
+            :frame-duration="frameDuration"
+            :guest-id="guestId"
+            :is-editable="canComment && !!guestId && isAnnotating"
+            :is-picture="isPicture"
+            :is-playing="isPlaying"
+            :movie-dimensions="overlayDimensions"
+            :panzoom-transform="panzoomTransform"
+            :preview-file-id="currentPreview?.id || ''"
+            :token="token"
+            @saved="onAnnotationsSaved"
+            v-if="(isMovie || isPicture) && !loading && currentPreview"
+          />
+
+          <div class="loading-background" v-if="loading">
+            <spinner />
+          </div>
+
+          <p
+            class="has-text-centered mt2 no-preview"
+            v-if="!loading && !currentPreview"
+          >
+            {{ $t('share.no_preview') }}
+          </p>
+        </div>
+      </div>
+
+      <shared-comments-panel
+        :token="token"
+        :guest-id="guestId"
+        :current-task-id="currentTaskId"
+        :can-comment="canComment"
+        :current-frame="currentFrameNumber"
+        :entity="currentEntity || {}"
+        @status-changed="onStatusChanged"
+        @time-code-clicked="onTimeCodeClicked"
+        v-if="!isCommentsHidden && token"
+      />
+    </div>
+
+    <video-progress
+      ref="videoProgressRef"
+      class="video-progress pull-bottom"
+      :annotations="currentAnnotations"
+      :background-url="darkTimesliderUrl"
+      :empty="!isMovie"
+      :frame-duration="frameDuration"
+      :is-full-mode="false"
+      :is-full-screen="false"
+      :movie-dimensions="movieDimensions"
+      :nb-frames="nbFrames"
+      :handle-in="-1"
+      :handle-out="-1"
+      :preview-id="currentPreview ? currentPreview.id : ''"
+      :url-prefix="sharedApiPrefix"
+      @progress-changed="onProgressChanged"
+      v-show="!!currentPreview"
+    />
+
+    <shared-playlist-button-bar
+      :can-comment="canComment"
+      :current-frame-display="currentFrameDisplay"
+      :current-preview-index="currentPreviewIndex"
+      :current-time-formatted="currentTimeFormatted"
+      :entity-preview-length="currentEntityPreviewLength"
+      :guest-id="guestId"
+      :is-full-screen="isFullScreen"
+      :is-movie="isMovie"
+      :is-picture="isPicture"
+      :is-playing="isPlaying"
+      :is-sound="isSound"
+      :max-duration-formatted="maxDurationFormatted"
+      :nb-frames-display="nbFramesDisplay"
+      :token="token"
+      v-model:is-annotating="isAnnotating"
+      v-model:is-comments-hidden="isCommentsHidden"
+      v-model:is-entities-hidden="isEntitiesHidden"
+      v-model:is-hd="isHd"
+      v-model:is-muted="isMuted"
+      v-model:is-repeating="isRepeating"
+      v-model:volume="volume"
+      @next-preview="onNextPreviewClicked"
+      @pause="pause"
+      @play="play"
+      @previous-preview="onPreviousPreviewClicked"
+      @reset-zoom="onResetZoom"
+      @toggle-full-screen="toggleFullScreen"
+      @toggle-sound="onToggleSoundClicked"
+    />
+
+    <playlist-progress
+      :entity-list="entityListForProgress"
+      :fps="fps"
+      :frame-duration="frameDuration"
+      :is-full-mode="false"
+      :is-full-screen="false"
+      :movie-dimensions="movieDimensions"
+      :nb-frames="nbFrames"
+      :preview-id="currentPreview ? currentPreview.id : ''"
+      :playlist-duration="playlistDuration"
+      :playlist-progress="currentPlaylistProgress"
+      :playlist-shot-position="playlistShotPosition"
+      :url-prefix="sharedApiPrefix"
+      @progress-playlist-changed="onProgressPlaylistChanged"
+      v-if="entityList.length > 1 && playlistDuration > 0"
+    />
+
+    <div
+      :class="{
+        'playlisted-entities': true,
+        flexrow: true,
+        hidden: isEntitiesHidden
+      }"
+      ref="playlistedEntities"
+      @wheel="onEntitiesWheel"
+    >
+      <div
+        class="flexrow-item has-text-centered playlisted-wrapper"
+        :data-entity-index="index"
+        :key="entity.id || index"
+        v-for="(entity, index) in entityList"
+      >
+        <playlisted-entity
+          :entity="entity"
+          :index="index"
+          :is-playing="playingEntityIndex === index"
+          :read-only="true"
+          :url-prefix="sharedApiPrefix"
+          @play-click="selectEntity"
+        />
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { DownloadIcon } from 'lucide-vue-next'
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+  watchEffect
+} from 'vue'
+import { useStore } from 'vuex'
+
+import darkTimesliderUrl from '@/assets/background/video-timeslider-dark.png'
+import { usePanzoomSync } from '@/composables/panzoom'
+import { isAltLetter } from '@/composables/players/previewShortcuts'
+import { mergeAnnotationsByFrame } from '@/lib/players/annotation'
+import {
+  isDiffPreview,
+  isMarkdownPreview,
+  isModelPreview,
+  isMoviePreview,
+  isPdfPreview,
+  isPicturePreview,
+  isSoundPreview
+} from '@/lib/preview'
+import { floorToFrame, formatTime } from '@/lib/video'
+
+import SharedAnnotationOverlay from '@/components/players/annotations/SharedAnnotationOverlay.vue'
+import SharedPlaylistButtonBar from '@/components/players/bars/SharedPlaylistButtonBar.vue'
+import SharedPlaylistHeader from '@/components/players/headers/SharedPlaylistHeader.vue'
+import PlaylistedEntity from '@/components/players/players/PlaylistedEntity.vue'
+import PlaylistProgress from '@/components/players/progress/PlaylistProgress.vue'
+import VideoProgress from '@/components/players/progress/VideoProgress.vue'
+import SharedCommentsPanel from '@/components/players/sides/SharedCommentsPanel.vue'
+import DiffViewer from '@/components/players/viewers/DiffViewer.vue'
+import MarkdownViewer from '@/components/players/viewers/MarkdownViewer.vue'
+import MultiVideoViewer from '@/components/players/viewers/MultiVideoViewer.vue'
+import ObjectViewer from '@/components/players/viewers/ObjectViewer.vue'
+import PdfViewer from '@/components/players/viewers/PdfViewer.vue'
+import PictureViewer from '@/components/players/viewers/PictureViewer.vue'
+import SoundViewer from '@/components/players/viewers/SoundViewer.vue'
+import Spinner from '@/components/widgets/Spinner.vue'
+
+const store = useStore()
+
+// Props / Emits
+
+const props = defineProps({
+  canComment: { type: Boolean, default: false },
+  entities: { type: Array, default: () => [] },
+  guestId: { type: String, default: '' },
+  loading: { type: Boolean, default: false },
+  playlist: { type: Object, default: () => ({}) },
+  token: { type: String, default: '' }
+})
+
+const emit = defineEmits(['logout'])
+
+// State
+
+const { panzoomTransform, onPanzoomChanged, resetPanzoomTransform } =
+  usePanzoomSync()
+
+const container = ref(null)
+const videoContainer = ref(null)
+// Height available for the picture viewer: it must fill the same area the
+// annotation overlay fits into (the whole .video-container), otherwise a
+// fixed height left the image small and pushed annotations below it.
+const pictureHeight = ref(600)
+const currentFrameNumber = ref(0)
+const currentPlaylistProgress = ref(0)
+const currentPreviewIndex = ref(0)
+const isAnnotating = ref(false)
+const isCommentsHidden = ref(
+  typeof window !== 'undefined' &&
+    window.matchMedia?.('(max-width: 768px)').matches
+)
+const isEntitiesHidden = ref(false)
+const isFullScreen = ref(false)
+const isHd = ref(true)
+const isMuted = ref(false)
+const isPlaying = ref(false)
+const isRepeating = ref(false)
+const maxDuration = ref(0)
+const movieDimensions = ref({ width: 0, height: 0 })
+const picturePlayer = ref(null)
+const playingEntityIndex = ref(0)
+const playlistedEntities = ref(null)
+const rawPlayer = ref(null)
+const soundPlayer = ref(null)
+const videoProgressRef = ref(null)
+const volume = ref(100)
+
+// Tracks whether the very first entity has been auto-loaded after mount.
+// Plain `let` (not ref) — only used by the watchers below.
+let firstEntityLoaded = false
+
+// requestAnimationFrame id for the picture playback timer (null when idle).
+let picturePlayFrame = null
+
+// Computed
+
+const entityList = computed(() => props.entities || [])
+
+const playlistName = computed(() => props.playlist?.name || '')
+const projectName = computed(() => props.playlist?.project_name || '')
+
+const sharedApiPrefix = computed(() =>
+  props.token ? `/api/shared/playlists/${props.token}` : ''
+)
+
+const fps = computed(() => parseFloat(props.playlist?.project_fps) || 25)
+const frameDuration = computed(
+  () => Math.round((1 / fps.value) * 10000) / 10000
+)
+
+const currentEntity = computed(() => entityList.value[playingEntityIndex.value])
+const currentTaskId = computed(
+  () => currentEntity.value?.preview_file_task_id || ''
+)
+
+const currentEntityDisplayName = computed(() => {
+  const entity = currentEntity.value
+  if (!entity) return ''
+  const parent = entity.parent_name || ''
+  const name = entity.name || ''
+  if (parent && name) return `${parent} / ${name}`
+  return parent || name
+})
+
+const guestDisplayName = computed(() => {
+  const user = store.getters.user
+  if (!user?.is_guest) return ''
+  return `${user.first_name || ''} ${user.last_name || ''}`.trim()
+})
+
+const currentPreview = computed(() => {
+  const entity = currentEntity.value
+  if (!entity) return null
+  if (currentPreviewIndex.value === 0) {
+    return {
+      id: entity.preview_file_id,
+      extension: entity.preview_file_extension,
+      task_id: entity.preview_file_task_id,
+      revision: entity.preview_file_revision,
+      width: entity.preview_file_width,
+      height: entity.preview_file_height,
+      annotations: entity.preview_file_annotations || [],
+      duration: entity.preview_file_duration || 0
+    }
+  }
+  return entity.preview_file_previews?.[currentPreviewIndex.value - 1]
+})
+
+// Legacy annotations store unrounded times, so the same frame can exist as
+// several entries; the players only ever match the first one, which hides
+// the others (and makes a newly drawn+saved annotation look lost when an
+// old entry sits on the same frame). Merge them onto the frame grid, exactly
+// like the studio PreviewPlayer, so old + new annotations all render.
+const currentAnnotations = computed(() => {
+  const anns = (currentPreview.value?.annotations || []).filter(
+    a => a.time >= 0
+  )
+  return mergeAnnotationsByFrame(anns, fps.value).sort(
+    (a, b) => a.time - b.time
+  )
+})
+
+// Number of preview files attached to the current entity (main preview +
+// its alternate previews / sub-previews). Used to drive the sub-preview
+// navigation just like the studio player.
+const currentEntityPreviewLength = computed(() => {
+  const entity = currentEntity.value
+  if (!entity?.preview_file_previews) return 0
+  return entity.preview_file_previews.length + 1
+})
+
+const extension = computed(() => currentPreview.value?.extension || '')
+const isMovie = computed(() => isMoviePreview(extension.value))
+const isPicture = computed(() => isPicturePreview(extension.value))
+const isSound = computed(() => isSoundPreview(extension.value))
+const isModel = computed(() => isModelPreview(extension.value))
+const isPdf = computed(() => isPdfPreview(extension.value))
+const isMarkdown = computed(() => isMarkdownPreview(extension.value))
+const isDiff = computed(() => isDiffPreview(extension.value))
+const isOtherFile = computed(
+  () =>
+    !!currentPreview.value &&
+    !isMovie.value &&
+    !isPicture.value &&
+    !isSound.value &&
+    !isModel.value &&
+    !isPdf.value &&
+    !isMarkdown.value &&
+    !isDiff.value
+)
+
+const downloadUrl = computed(() => {
+  if (!currentPreview.value) return ''
+  if (props.token) {
+    return `/api/shared/playlists/${props.token}/preview-files/${currentPreview.value.id}/download`
+  }
+  return `/api/pictures/originals/preview-files/${currentPreview.value.id}/download`
+})
+
+const downloadFileName = computed(() => {
+  const entityName = currentEntity.value?.name || 'preview'
+  return extension.value ? `${entityName}.${extension.value}` : entityName
+})
+
+const modelUrl = computed(() => {
+  if (!currentPreview.value) return ''
+  const base = sharedApiPrefix.value || '/api'
+  return `${base}/pictures/originals/preview-files/${currentPreview.value.id}.${extension.value}`
+})
+
+const overlayDimensions = computed(() => {
+  if (isPicture.value) {
+    return {
+      width: currentPreview.value?.width || 0,
+      height: currentPreview.value?.height || 0
+    }
+  }
+  return movieDimensions.value
+})
+
+const nbFrames = computed(() => {
+  const isChromium = !!window.chrome
+  const change = isChromium ? frameDuration.value : 0
+  const duration =
+    maxDuration.value > 0
+      ? maxDuration.value + change
+      : currentPreview.value?.duration || 0
+  if (duration > 0) return Math.round(duration * fps.value)
+  if (isPicture.value) return Math.round(2 * fps.value)
+  return 0
+})
+
+const currentFrameDisplay = computed(() =>
+  String(Math.max(currentFrameNumber.value, 0) + 1).padStart(3, '0')
+)
+const nbFramesDisplay = computed(() =>
+  String(nbFrames.value || 0).padStart(3, '0')
+)
+const currentTimeFormatted = computed(() =>
+  formatTime(currentFrameNumber.value * frameDuration.value, fps.value)
+)
+const maxDurationFormatted = computed(() =>
+  formatTime(maxDuration.value, fps.value)
+)
+
+const playlistFrameData = computed(() => {
+  const position = {}
+  const startDurationByIndex = []
+  const entitiesWithStart = []
+  let duration = 0
+  let currentFrame = 0
+  const fpsValue = fps.value
+  const defaultPictureFrames = Math.round(2 * fpsValue)
+
+  entityList.value.forEach((entity, index) => {
+    const entityNbFrames =
+      Math.round((entity.preview_file_duration || 0) * fpsValue) ||
+      entity.preview_nb_frames ||
+      defaultPictureFrames
+    const startDuration = (currentFrame + 1) / fpsValue
+    startDurationByIndex[index] = startDuration
+    entitiesWithStart.push({ ...entity, start_duration: startDuration })
+    for (let i = 0; i < entityNbFrames; i++) {
+      position[currentFrame + i] = {
+        index,
+        name: entity.name,
+        extension: entity.preview_file_extension,
+        start: startDuration,
+        width: entity.preview_file_width,
+        height: entity.preview_file_height,
+        id: entity.preview_file_id
+      }
+    }
+    currentFrame += entityNbFrames
+    duration += entityNbFrames / fpsValue
+  })
+  return {
+    playlistShotPosition: position,
+    playlistDuration: duration,
+    startDurationByIndex,
+    entitiesWithStart
+  }
+})
+
+const playlistShotPosition = computed(
+  () => playlistFrameData.value.playlistShotPosition
+)
+const playlistDuration = computed(
+  () => playlistFrameData.value.playlistDuration
+)
+const entityListForProgress = computed(
+  () => playlistFrameData.value.entitiesWithStart
+)
+
+// Functions — playback
+
+const play = () => {
+  isPlaying.value = true
+  if (isSound.value) soundPlayer.value?.play()
+  else if (isPicture.value) playPicture()
+  else rawPlayer.value?.play()
+}
+
+const pause = () => {
+  isPlaying.value = false
+  stopPicturePlayback()
+  if (isSound.value) soundPlayer.value?.pause()
+  else rawPlayer.value?.pause()
+}
+
+const togglePlay = () => (isPlaying.value ? pause() : play())
+
+// Picture playback: the picture viewer (not MultiVideoViewer, which is
+// movie-only) shows the image, and a timer advances the playlist after the
+// image's frame budget elapses — mirroring the studio player's playPicture.
+// Matches playlistFrameData's defaultPictureFrames so a picture is shown for
+// the same span the playlist-progress bar allots to it.
+const pictureFrameCount = () => Math.round(2 * fps.value)
+
+const stopPicturePlayback = () => {
+  if (picturePlayFrame !== null) cancelAnimationFrame(picturePlayFrame)
+  picturePlayFrame = null
+}
+
+const playPicture = () => {
+  stopPicturePlayback()
+  const total = pictureFrameCount()
+  let startFrame = currentFrameNumber.value
+  if (startFrame >= total - 1) startFrame = 0
+  const baseline = performance.now() - (startFrame / fps.value) * 1000
+  const step = () => {
+    if (!isPlaying.value || !isPicture.value) return
+    const frame = Math.floor(
+      ((performance.now() - baseline) / 1000) * fps.value
+    )
+    if (frame >= total) {
+      advancePlaylist()
+      return
+    }
+    onFrameUpdate(frame)
+    picturePlayFrame = requestAnimationFrame(step)
+  }
+  picturePlayFrame = requestAnimationFrame(step)
+}
+
+// Play whatever preview is currently selected, by type. Used when stepping
+// to the next sub-preview of the same entity during playback (a movie
+// sub-preview is a different file, so it must be (re)loaded first).
+const playCurrentPreview = () => {
+  if (!isPlaying.value) return
+  if (isSound.value) soundPlayer.value?.play()
+  else if (isPicture.value) playPicture()
+  else {
+    rawPlayer.value?.loadEntity(playingEntityIndex.value, 0)
+    nextTick(() => rawPlayer.value?.play())
+  }
+}
+
+// Advance playback: step through the current entity's sub-previews one by
+// one, then move to the next entity. Used when a movie ends or an image's
+// display time elapses.
+const advancePlaylist = () => {
+  const previewCount = Math.max(currentEntityPreviewLength.value, 1)
+  if (currentPreviewIndex.value < previewCount - 1) {
+    currentPreviewIndex.value += 1
+    currentFrameNumber.value = 0
+    nextTick(playCurrentPreview)
+    return
+  }
+  const next = playingEntityIndex.value + 1
+  if (next >= entityList.value.length) {
+    pause()
+    return
+  }
+  selectEntity(next)
+}
+
+const selectEntity = index => {
+  if (index < 0 || index >= entityList.value.length) return
+  const wasPlaying = isPlaying.value
+  // Move the index before pausing: rawPlayer.pause() emits a synchronous
+  // `frame-update` carrying the *previous* entity's current frame, and
+  // onFrameUpdate uses playingEntityIndex to map the frame back onto
+  // currentPlaylistProgress. With the old index still in place the
+  // cursor was being snapped to the start of the previously selected
+  // shot.
+  playingEntityIndex.value = index
+  currentPreviewIndex.value = 0
+  currentFrameNumber.value = 0
+  // Snap the global playlist marker to the new entity right away so the
+  // cursor jumps on the first click without waiting for the new video
+  // to load and emit its first frame-update.
+  const startDuration = playlistFrameData.value.startDurationByIndex[index]
+  if (typeof startDuration === 'number' && playlistDuration.value > 0) {
+    currentPlaylistProgress.value = startDuration
+  }
+  pause()
+  rawPlayer.value?.loadEntity(index)
+  if (wasPlaying) nextTick(play)
+}
+
+const previousEntity = () => selectEntity(playingEntityIndex.value - 1)
+const nextEntity = () => selectEntity(playingEntityIndex.value + 1)
+
+// Functions — sub-previews & zoom
+
+const onPreviousPreviewClicked = () => {
+  const length = currentEntityPreviewLength.value
+  if (length <= 1) return
+  const index = currentPreviewIndex.value - 1
+  currentPreviewIndex.value = index < 0 ? length - 1 : index
+}
+
+const onNextPreviewClicked = () => {
+  const length = currentEntityPreviewLength.value
+  if (length <= 1) return
+  const index = currentPreviewIndex.value + 1
+  currentPreviewIndex.value = index > length - 1 ? 0 : index
+}
+
+// The movie viewer creates its panzoom instance paused (panzoomActive
+// starts false in MultiVideoViewer); like the studio player we resume it
+// as soon as the instance is ready so pan/zoom is always available. The
+// picture viewer is live by default and needs no resume.
+const onPanzoomReady = () => {
+  rawPlayer.value?.resumePanZoom?.()
+}
+
+// The "loupe" button mirrors the studio player: it resets the zoom rather
+// than toggling a mode (pan/zoom on the media stays available at all times).
+const onResetZoom = () => {
+  rawPlayer.value?.resetPanZoom?.()
+  picturePlayer.value?.resetPanZoom?.()
+  resetPanzoomTransform()
+}
+
+const goPreviousFrame = () => {
+  if (!rawPlayer.value) return
+  const previousFrame = currentFrameNumber.value - 1
+  if (previousFrame < 0) return
+  rawPlayer.value.goPreviousFrame()
+  onFrameUpdate(previousFrame)
+}
+
+const goNextFrame = () => {
+  if (!rawPlayer.value) return
+  const nextFrame = currentFrameNumber.value + 1
+  if (nbFrames.value > 0 && nextFrame >= nbFrames.value) return
+  rawPlayer.value.goNextFrame()
+  onFrameUpdate(nextFrame)
+}
+
+const loadFirstEntity = () => {
+  if (firstEntityLoaded) return
+  if (entityList.value.length > 0 && rawPlayer.value) {
+    firstEntityLoaded = true
+    rawPlayer.value.loadEntity(0)
+  }
+}
+
+// Functions — fullscreen / sound
+
+const isDocumentFullScreen = () =>
+  Boolean(document.fullscreenElement || document.webkitIsFullScreen)
+
+const toggleFullScreen = async () => {
+  if (isDocumentFullScreen()) {
+    await (document.exitFullscreen?.() || document.webkitCancelFullScreen?.())
+  } else if (container.value) {
+    await (container.value.requestFullscreen?.() ||
+      container.value.webkitRequestFullScreen?.())
+  }
+}
+
+const onFullScreenChange = () => {
+  isFullScreen.value = isDocumentFullScreen()
+}
+
+const onToggleSoundClicked = () => {
+  isMuted.value = !isMuted.value
+}
+
+// Functions — player events
+
+const onEntityChange = index => {
+  playingEntityIndex.value = index
+}
+
+const onFrameUpdate = rawFrameNumber => {
+  const frameNumber = Math.round(Number(rawFrameNumber) || 0)
+  currentFrameNumber.value = frameNumber
+  videoProgressRef.value?.updateProgressBar(frameNumber)
+  const startDuration =
+    playlistFrameData.value.startDurationByIndex[playingEntityIndex.value]
+  if (typeof startDuration === 'number' && playlistDuration.value > 0) {
+    currentPlaylistProgress.value =
+      startDuration + frameNumber / (fps.value || 25)
+  }
+}
+
+const onProgressChanged = frameNumber => {
+  if (!isMovie.value) return
+  rawPlayer.value?.setCurrentFrame(frameNumber)
+  onFrameUpdate(frameNumber)
+}
+
+const onProgressPlaylistChanged = frameNumber => {
+  const position = playlistShotPosition.value[frameNumber]
+  if (!position) return
+  const { index, start } = position
+  const localFrame = Math.round(frameNumber - start * fps.value)
+  if (index !== playingEntityIndex.value) {
+    selectEntity(index)
+    nextTick(() => rawPlayer.value?.setCurrentFrame(Math.max(localFrame, 0)))
+  } else {
+    rawPlayer.value?.setCurrentFrame(Math.max(localFrame, 0))
+  }
+}
+
+const onPlayNext = () => {
+  if (!isPlaying.value) return
+  // Step through sub-previews first, then the next entity (handles images
+  // too, which MultiVideoViewer's own playNext would skip).
+  advancePlaylist()
+}
+
+const onVideoLoaded = () => {
+  const dimensions = rawPlayer.value?.getNaturalDimensions?.() || {}
+  movieDimensions.value = {
+    width: dimensions.width || 0,
+    height: dimensions.height || 0
+  }
+  // Push the initial frame so the video-progress cursor sits on frame 1 and
+  // the annotation overlay renders the first frame's annotations right away
+  // (the viewer doesn't emit a frame-update until playback starts).
+  if (!isPlaying.value) onFrameUpdate(0)
+}
+
+const onMaxDurationUpdate = duration => {
+  maxDuration.value = duration ? floorToFrame(duration, fps.value) : 0
+}
+
+const onTimeCodeClicked = ({ frame }) => {
+  if (!isMovie.value) return
+  const frameNumber = Math.max(parseInt(frame, 10) || 0, 0)
+  rawPlayer.value?.setCurrentFrame(frameNumber)
+  onFrameUpdate(frameNumber)
+}
+
+const onAnnotationsSaved = annotations => {
+  const entity = currentEntity.value
+  if (entity) entity.preview_file_annotations = annotations
+}
+
+const onStatusChanged = ({ taskStatusId, color }) => {
+  const entity = currentEntity.value
+  if (!entity || !taskStatusId || !color) return
+  entity.task_status_id = taskStatusId
+  entity.task_status_color = color
+}
+
+// Functions — entity strip
+
+const onEntitiesWheel = event => {
+  if (playlistedEntities.value) {
+    playlistedEntities.value.scrollLeft += event.deltaY
+  }
+}
+
+const scrollPlayingEntityIntoView = () => {
+  const stripContainer = playlistedEntities.value
+  if (!stripContainer || stripContainer.classList.contains('hidden')) return
+  const target = stripContainer.querySelector(
+    `[data-entity-index="${playingEntityIndex.value}"]`
+  )
+  if (!target) return
+  const containerRect = stripContainer.getBoundingClientRect()
+  const targetRect = target.getBoundingClientRect()
+  const targetCenter = targetRect.left + targetRect.width / 2
+  const containerCenter = containerRect.left + containerRect.width / 2
+  stripContainer.scrollTo({
+    left: stripContainer.scrollLeft + (targetCenter - containerCenter),
+    behavior: 'smooth'
+  })
+}
+
+// Tell the embedded video player its container size has changed: dispatch
+// a resize synchronously so flex layout recomputes, then let the DOM paint
+// before asking the raw player to re-measure.
+const triggerPlayerResize = () => {
+  window.dispatchEvent(new Event('resize'))
+  setTimeout(() => {
+    rawPlayer.value?.resetHeight?.()
+    window.dispatchEvent(new Event('resize'))
+  }, 50)
+}
+
+const updatePictureHeight = () => {
+  const el = videoContainer.value
+  if (el?.clientHeight) pictureHeight.value = el.clientHeight
+}
+
+// Functions — keyboard
+
+const onKeyDown = event => {
+  if (['INPUT', 'TEXTAREA'].includes(event.target.tagName)) return
+
+  const stop = () => {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  // Entity navigation reuses isAltLetter (shared with usePreviewShortcuts)
+  // so Alt+J/K match identically here. Arrows below stay event.code-only —
+  // no letter glyph to worry about.
+  if (isAltLetter(event, 'KeyJ', 'j')) {
+    stop()
+    previousEntity()
+    return
+  }
+  if (isAltLetter(event, 'KeyK', 'k')) {
+    stop()
+    nextEntity()
+    return
+  }
+
+  switch (event.code) {
+    case 'Space':
+      stop()
+      togglePlay()
+      break
+    case 'ArrowLeft':
+      stop()
+      if (event.altKey) previousEntity()
+      else goPreviousFrame()
+      break
+    case 'ArrowRight':
+      stop()
+      if (event.altKey) nextEntity()
+      else goNextFrame()
+      break
+    case 'Home':
+      rawPlayer.value?.setCurrentFrame(0)
+      onFrameUpdate(0)
+      break
+    case 'End':
+      if (nbFrames.value > 0) {
+        const lastFrame = nbFrames.value - 1
+        rawPlayer.value?.setCurrentFrame(lastFrame)
+        onFrameUpdate(lastFrame)
+      }
+      break
+  }
+}
+
+// Watchers
+
+watchEffect(() => {
+  if (!firstEntityLoaded && entityList.value.length > 0 && rawPlayer.value) {
+    nextTick(loadFirstEntity)
+  }
+})
+
+watch(
+  () => entityList.value.length,
+  newLength => {
+    if (newLength > 0) loadFirstEntity()
+  }
+)
+
+watch(volume, newVolume => {
+  nextTick(() => rawPlayer.value?.setVolume(newVolume))
+})
+
+watch(isCommentsHidden, triggerPlayerResize)
+
+watch(isEntitiesHidden, hidden => {
+  triggerPlayerResize()
+  if (!hidden) nextTick(scrollPlayingEntityIntoView)
+})
+
+watch(playingEntityIndex, () => nextTick(scrollPlayingEntityIntoView))
+
+// Reset pan/zoom whenever the displayed preview changes (entity or
+// sub-preview) so annotations stay aligned with the freshly-reset media.
+watch(
+  () => currentPreview.value?.id,
+  () =>
+    nextTick(() => {
+      const target = isMovie.value ? rawPlayer.value : picturePlayer.value
+      target?.resetPanZoom?.()
+      resetPanzoomTransform()
+    })
+)
+
+// Lifecycle
+
+let pictureResizeObserver = null
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeyDown, false)
+  document.addEventListener('fullscreenchange', onFullScreenChange)
+  document.addEventListener('webkitfullscreenchange', onFullScreenChange)
+  updatePictureHeight()
+  if (window.ResizeObserver && videoContainer.value) {
+    pictureResizeObserver = new ResizeObserver(updatePictureHeight)
+    pictureResizeObserver.observe(videoContainer.value)
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeyDown)
+  document.removeEventListener('fullscreenchange', onFullScreenChange)
+  document.removeEventListener('webkitfullscreenchange', onFullScreenChange)
+  pictureResizeObserver?.disconnect()
+  stopPicturePlayback()
+})
+</script>
+
+<style lang="scss" scoped>
+// Theme
+
+.shared-player {
+  --accent: #7c5cff;
+  --accent-soft: rgba(124, 92, 255, 0.16);
+  --border-soft: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --surface: #14141a;
+  --surface-inset: #0e0e13;
+  --surface-raised: #1d1d26;
+  --text: #f4f5fa;
+  --text-muted: rgba(244, 245, 250, 0.6);
+
+  background:
+    radial-gradient(
+      120% 120% at 10% -10%,
+      rgba(124, 92, 255, 0.12) 0%,
+      transparent 45%
+    ),
+    radial-gradient(
+      100% 100% at 90% 110%,
+      rgba(255, 120, 180, 0.08) 0%,
+      transparent 50%
+    ),
+    var(--surface);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+// Layout & containers
+
+.loading-background {
+  align-items: center;
+  background: black;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  width: 100%;
+}
+
+.no-preview {
+  color: var(--text-muted);
+}
+
+.other-file {
+  align-items: center;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  padding: 2em;
+  width: 100%;
+}
+
+.other-file-link {
+  align-items: center;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  color: var(--text);
+  display: inline-flex;
+  font-size: 0.95em;
+  font-weight: 500;
+  gap: 0.6em;
+  padding: 0.8em 1.4em;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:hover {
+    background: var(--accent-soft);
+    border-color: rgba(124, 92, 255, 0.55);
+    box-shadow: 0 8px 22px rgba(124, 92, 255, 0.32);
+    color: var(--text);
+  }
+}
+
+.other-file-extension {
+  color: var(--text-muted);
+  font-size: 0.85em;
+  text-transform: uppercase;
+}
+
+.player-area {
+  align-items: center;
+  background: black;
+  display: flex;
+  flex: 1 1 0;
+  justify-content: center;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.player-row {
+  align-items: stretch;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.playlisted-entities {
+  align-items: flex-start;
+  background: var(--surface-inset);
+  border-top: 1px solid var(--border-soft);
+  flex-shrink: 0;
+  height: 200px;
+  min-height: 200px;
+  overflow-x: auto;
+  padding: 0.6em 0.4em 0.3em 0.6em;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  scrollbar-width: thin;
+
+  &.hidden {
+    display: none;
+  }
+
+  :deep(.entity-title) {
+    color: var(--text);
+    font-size: 0.85em;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  :deep(.playlisted-entity) {
+    background: var(--surface-raised);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    padding: 0.4em;
+    position: relative;
+    transition:
+      background 0.25s ease,
+      border-color 0.25s ease,
+      box-shadow 0.25s ease,
+      transform 0.25s ease;
+
+    > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    &::after {
+      background: linear-gradient(
+        135deg,
+        rgba(124, 92, 255, 0.35) 0%,
+        rgba(255, 120, 180, 0.2) 100%
+      );
+      border-radius: 12px;
+      content: '';
+      inset: 0;
+      opacity: 0;
+      pointer-events: none;
+      position: absolute;
+      transition: opacity 0.25s ease;
+      z-index: 0;
+    }
+
+    &.playing {
+      border: 1px solid rgba(124, 92, 255, 0.55);
+      box-shadow:
+        0 0 0 2px rgba(124, 92, 255, 0.18),
+        0 6px 22px rgba(124, 92, 255, 0.25);
+    }
+
+    &:hover {
+      background: #22222e;
+      border-color: rgba(124, 92, 255, 0.45);
+      box-shadow:
+        0 0 0 1px rgba(124, 92, 255, 0.25),
+        0 14px 32px rgba(124, 92, 255, 0.28),
+        0 6px 18px rgba(0, 0, 0, 0.45);
+      transform: translateY(-2px) scale(1.015);
+
+      &::after {
+        opacity: 0.1;
+      }
+    }
+  }
+
+  :deep(.playlisted-entity:hover .thumbnail-wrapper img) {
+    transform: scale(1.03);
+  }
+
+  :deep(.preview-meta) {
+    color: var(--text-muted);
+    font-size: 0.78em;
+
+    .revision {
+      color: var(--text);
+      font-weight: 600;
+    }
+  }
+
+  :deep(.thumbnail-picture) {
+    background-color: #000 !important;
+    border-color: transparent !important;
+  }
+
+  :deep(.thumbnail-wrapper) {
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+
+    img {
+      border-radius: 8px;
+      transition: transform 0.35s ease;
+    }
+  }
+
+  :deep(span.thumbnail-empty) {
+    background: #000;
+  }
+}
+
+.raw-player {
+  margin-right: 0;
+  max-height: 100%;
+  max-width: 100%;
+  // The movie canvas centers via `margin: auto`, which doesn't apply to an
+  // inline canvas on desktop (only the mobile media query made the wrapper a
+  // flex box), so the video stuck to the left. Center it here too.
+  align-items: center;
+  display: flex;
+  justify-content: center;
+}
+
+.video-container {
+  align-items: center;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  position: relative;
+  width: 100%;
+}
+
+.video-progress {
+  flex-shrink: 0;
+  width: 100%;
+}
+
+// :deep overrides on the shared player
+
+.shared-player :deep(progress),
+.shared-player :deep(progress[value]::-webkit-progress-bar) {
+  background-color: transparent;
+  border: 0;
+}
+
+.shared-player :deep(progress::-moz-progress-bar) {
+  background-color: rgba(124, 92, 255, 0.75);
+  opacity: 1;
+}
+
+.shared-player :deep(progress::-webkit-progress-value) {
+  background-color: rgba(124, 92, 255, 0.75);
+  opacity: 1;
+}
+
+.shared-player :deep(.annotation-mark) {
+  background: #ff578c;
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px rgba(255, 87, 140, 0.25);
+}
+
+.shared-player :deep(.frame-number) {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  color: var(--text);
+}
+
+.shared-player :deep(.handle-in),
+.shared-player :deep(.handle-out) {
+  background: rgba(14, 14, 19, 0.85);
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.shared-player :deep(.handle-in::after),
+.shared-player :deep(.handle-out::before) {
+  background: var(--accent);
+}
+
+// Use the PlaylistProgress component's own styling (same look as the studio
+// player); only keep the layout bit so the bar isn't squeezed in the guest's
+// flex column.
+.shared-player :deep(.playlist-progress) {
+  flex-shrink: 0;
+}
+
+// Responsive
+
+@media screen and (max-width: 900px) and (orientation: landscape) {
+  .video-progress {
+    display: none;
+  }
+
+  .shared-player :deep(.playlist-progress) {
+    display: none !important;
+  }
+}
+</style>

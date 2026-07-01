@@ -45,7 +45,7 @@ import { ChevronDownIcon } from 'lucide-vue-next'
 
 import ToggleButton from '@/components/widgets/ToggleButton.vue'
 
-const emit = defineEmits(['change', 'update:modelValue'])
+const emit = defineEmits(['change', 'update:model-value'])
 
 const props = defineProps({
   isReversed: {
@@ -79,7 +79,7 @@ const optionList = computed(() => {
   return props.isReversed ? props.options.slice().reverse() : props.options
 })
 
-function toggleList() {
+const toggleList = () => {
   if (showList.value) {
     lastScrollPosition.value = list.value?.scrollTop || 0
   }
@@ -90,14 +90,14 @@ function toggleList() {
         lastScrollPosition.value ||
         (props.isReversed && list.value?.scrollHeight) ||
         0
-      list.value?.scrollTo({ top })
+      list.value?.scrollTo?.({ top })
     })
   }
 }
 
-function onUpdateValue(key) {
+const onUpdateValue = key => {
   const value = !props.modelValue[key]
-  emit('update:modelValue', {
+  emit('update:model-value', {
     ...props.modelValue,
     [key]: value
   })

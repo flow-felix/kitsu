@@ -12,7 +12,7 @@
 
     <studio-list
       class="studio-list"
-      :entries="studioList"
+      :entries="displayedStudios"
       :is-loading="loading.studios"
       :is-error="errors.studios"
       @edit-clicked="onEditClicked"
@@ -40,171 +40,158 @@
   </div>
 </template>
 
-<script>
-import { mapGetters, mapActions } from 'vuex'
+<script setup>
+import { useHead } from '@unhead/vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
+import { useStore } from 'vuex'
 
 import csv from '@/lib/csv'
 import stringHelpers from '@/lib/string'
 
+import StudioList from '@/components/lists/StudioList.vue'
 import DeleteModal from '@/components/modals/DeleteModal.vue'
 import EditStudiosModal from '@/components/modals/EditStudiosModal.vue'
 import ListPageHeader from '@/components/widgets/ListPageHeader.vue'
 import RouteTabs from '@/components/widgets/RouteTabs.vue'
-import StudioList from '@/components/lists/StudioList.vue'
 
-export default {
-  name: 'studios',
+const { t } = useI18n()
+const route = useRoute()
+const store = useStore()
 
-  components: {
-    DeleteModal,
-    EditStudiosModal,
-    ListPageHeader,
-    RouteTabs,
-    StudioList
-  },
+// State
 
-  data() {
-    return {
-      activeTab: 'active',
-      studioToEdit: null,
-      studioToDelete: null,
-      errors: {
-        studios: false,
-        edit: false,
-        del: false
-      },
-      loading: {
-        studios: false,
-        edit: false,
-        del: false
-      },
-      modals: {
-        del: false,
-        edit: false
-      },
-      tabs: [
-        {
-          name: 'active',
-          label: this.$t('main.active')
-        },
-        {
-          name: 'archived',
-          label: this.$t('main.archived')
-        }
-      ]
-    }
-  },
+const activeTab = ref('active')
+const studioToDelete = ref(null)
+const studioToEdit = ref(null)
 
-  async mounted() {
-    this.activeTab = this.$route.query.tab || 'active'
-    this.loading.studios = true
-    this.errors.studios = false
-    try {
-      await this.loadStudios()
-    } catch (error) {
-      console.error(error)
-      this.errors.studios = true
-    }
-    this.loading.studios = false
-  },
+const errors = reactive({ del: false, edit: false, studios: false })
+const loading = reactive({ del: false, edit: false, studios: false })
+const modals = reactive({ del: false, edit: false })
 
-  computed: {
-    ...mapGetters(['studios', 'archivedStudios']),
+// Computed
 
-    isActiveTab() {
-      return this.activeTab === 'active'
-    },
+const archivedStudios = computed(() => store.getters.archivedStudios)
+const studios = computed(() => store.getters.studios)
 
-    studioList() {
-      return this.isActiveTab ? this.studios : this.archivedStudios
-    },
+const isActiveTab = computed(() => activeTab.value === 'active')
 
-    deleteText() {
-      return this.studioToDelete
-        ? this.$t('studios.delete_text', { name: this.studioToDelete.name })
-        : ''
-    }
-  },
+const tabs = computed(() => [
+  { name: 'active', label: t('main.active') },
+  { name: 'archived', label: t('main.archived') }
+])
 
-  methods: {
-    ...mapActions(['deleteStudio', 'editStudio', 'loadStudios', 'newStudio']),
+const displayedStudios = computed(() =>
+  isActiveTab.value ? studios.value : archivedStudios.value
+)
 
-    onExportClicked() {
-      const name = stringHelpers.slugify(this.$t('studios.title'))
-      const headers = [
-        this.$t('main.type'),
-        this.$t('studios.fields.name'),
-        this.$t('studios.fields.color')
-      ]
-      const entries = [headers].concat(
-        this.studios.map(studio => [studio.type, studio.name, studio.color])
-      )
-      csv.buildCsvFile(name, entries)
-    },
+const deleteText = computed(() =>
+  studioToDelete.value
+    ? t('studios.delete_text', { name: studioToDelete.value.name })
+    : ''
+)
 
-    onNewClicked() {
-      this.studioToEdit = { name: '', color: '#999999' }
-      this.modals.edit = true
-    },
+// Functions
 
-    onEditClicked(studio) {
-      this.studioToEdit = studio
-      this.modals.edit = true
-    },
-
-    async confirmEditStudio(form) {
-      this.loading.edit = true
-      this.errors.edit = false
-      form.id = this.studioToEdit?.id
-      try {
-        if (form.id) {
-          await this.editStudio(form)
-        } else {
-          await this.newStudio(form)
-        }
-        this.modals.edit = false
-      } catch (error) {
-        console.error(error)
-        this.errors.edit = true
-      }
-      this.loading.edit = false
-    },
-
-    onDeleteClicked(studio) {
-      this.studioToDelete = studio
-      this.modals.del = true
-    },
-
-    async confirmDeleteStudio() {
-      this.loading.del = true
-      this.errors.del = false
-      try {
-        await this.deleteStudio(this.studioToDelete)
-        this.modals.del = false
-      } catch (error) {
-        console.error(error)
-        this.errors.del = true
-      }
-      this.loading.del = false
-    }
-  },
-
-  watch: {
-    '$route.query.tab'() {
-      this.activeTab = this.$route.query.tab || 'active'
-    }
-  },
-
-  head() {
-    return {
-      title: `${this.$t('studios.title')} - Kitsu`
-    }
-  }
+const onExportClicked = () => {
+  const name = stringHelpers.slugify(t('studios.title'))
+  const headers = [
+    t('main.type'),
+    t('studios.fields.name'),
+    t('studios.fields.color')
+  ]
+  const rows = studios.value.map(studio => [
+    studio.type,
+    studio.name,
+    studio.color
+  ])
+  csv.buildCsvFile(name, [headers, ...rows])
 }
+
+const onNewClicked = () => {
+  studioToEdit.value = { name: '', color: '#999999' }
+  modals.edit = true
+}
+
+const onEditClicked = studio => {
+  studioToEdit.value = studio
+  modals.edit = true
+}
+
+const onDeleteClicked = studio => {
+  studioToDelete.value = studio
+  modals.del = true
+}
+
+const confirmEditStudio = async form => {
+  loading.edit = true
+  errors.edit = false
+  try {
+    if (studioToEdit.value?.id) {
+      await store.dispatch('editStudio', { ...form, id: studioToEdit.value.id })
+    } else {
+      await store.dispatch('newStudio', form)
+    }
+    modals.edit = false
+  } catch (err) {
+    console.error(err)
+    errors.edit = true
+  }
+  loading.edit = false
+}
+
+const confirmDeleteStudio = async () => {
+  loading.del = true
+  errors.del = false
+  try {
+    await store.dispatch('deleteStudio', studioToDelete.value)
+    modals.del = false
+  } catch (err) {
+    console.error(err)
+    errors.del = true
+  }
+  loading.del = false
+}
+
+// Watchers
+
+watch(
+  () => route.query.tab,
+  tab => {
+    activeTab.value = tab || 'active'
+  }
+)
+
+// Lifecycle
+
+onMounted(async () => {
+  activeTab.value = route.query.tab || 'active'
+  loading.studios = true
+  errors.studios = false
+  try {
+    await store.dispatch('loadStudios')
+  } catch (err) {
+    console.error(err)
+    errors.studios = true
+  }
+  loading.studios = false
+})
+
+// Head
+
+useHead({ title: computed(() => `${t('studios.title')} - Kitsu`) })
 </script>
 
 <style lang="scss" scoped>
 .studio-list {
   margin-top: 0;
+}
+
+@media screen and (max-width: 768px) {
+  .studios {
+    padding-left: 0.5em;
+    padding-right: 0.5em;
+  }
 }
 </style>

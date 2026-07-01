@@ -16,9 +16,9 @@
       <table-metadata-header-menu
         ref="headerMetadataMenu"
         :is-edit-allowed="
-          isMetadataColumnEditAllowed(lastMetadaDataHeaderMenuDisplayed)
+          isMetadataColumnEditAllowed(lastMetadataHeaderMenuDisplayed)
         "
-        :is-sticked="stickedColumns[lastMetadaDataHeaderMenuDisplayed]"
+        :is-sticked="stickedColumns[lastMetadataHeaderMenuDisplayed]"
         @edit-clicked="onEditMetadataClicked()"
         @delete-clicked="onDeleteMetadataClicked()"
         @sort-by-clicked="onSortByMetadataClicked()"
@@ -63,9 +63,6 @@
                   offsets['editor-' + j] ? `${offsets['editor-' + j]}px` : '0'
                 "
                 is-stick
-                :style="{
-                  'z-index': 1001
-                }"
                 @show-metadata-header-menu="
                   event => showMetadataHeaderMenu(descriptor.id, event)
                 "
@@ -206,7 +203,7 @@
                 }"
                 namespace="episodes"
                 v-model="metadataDisplayHeaders"
-                v-show="columnSelectorDisplayed"
+                v-model:is-open="columnSelectorDisplayed"
                 v-if="displaySettings.showInfos"
               />
 
@@ -484,7 +481,7 @@
       </table>
     </div>
 
-    <table-info :is-loading="isLoading" :is-error="isError" />
+    <table-info :is-loading="isLoading" :is-error="isError" big-cells />
 
     <div
       class="has-text-centered"
@@ -608,7 +605,7 @@ export default {
       type: 'episode',
       hiddenColumns: {},
       lastHeaderMenuDisplayed: null,
-      lastMetadaDataHeaderMenuDisplayed: null,
+      lastMetadataHeaderMenuDisplayed: null,
       lastHeaderMenuDisplayedIndexInGrid: null,
       lastSelectedEpisode: null,
       lastSelection: null,
@@ -713,10 +710,7 @@ export default {
     ...mapActions(['setEpisodeSelection']),
 
     isSelected(lineIndex, columnIndex) {
-      return (
-        this.episodeSelectionGrid[lineIndex] &&
-        this.episodeSelectionGrid[lineIndex][columnIndex]
-      )
+      return this.episodeSelectionGrid.has(`${lineIndex}-${columnIndex}`)
     },
 
     episodePath(episodeId) {
@@ -808,7 +802,7 @@ th.actions {
   color: inherit;
 }
 
-.name.episode-name {
+thead .name.episode-name {
   min-width: 110px;
   width: 110px;
 }
@@ -907,7 +901,6 @@ input[type='number'] {
 
 td.metadata-descriptor {
   height: 3.1rem;
-  max-width: 120px;
   padding: 0;
 }
 

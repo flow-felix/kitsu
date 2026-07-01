@@ -1,10 +1,14 @@
 export default {
   setPreference(key, item) {
-    return localStorage.setItem(key, item)
+    localStorage.setItem(key, item)
   },
 
   getPreference(key) {
     return localStorage.getItem(key)
+  },
+
+  setBoolPreference(key, value) {
+    localStorage.setItem(key, value ? 'true' : 'false')
   },
 
   getBoolPreference(key, defaultValue = false) {
@@ -14,12 +18,12 @@ export default {
 
   getIntPreference(key, defaultValue = 0) {
     const item = this.getPreference(key)
-    const value = parseInt(item)
+    const value = parseInt(item, 10)
     return isNaN(value) ? defaultValue : value
   },
 
   setObjectPreference(key, data) {
-    return localStorage.setItem(key, JSON.stringify(data))
+    localStorage.setItem(key, JSON.stringify(data))
   },
 
   getObjectPreference(key) {

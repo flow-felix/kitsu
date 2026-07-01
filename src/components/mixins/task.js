@@ -1,5 +1,3 @@
-import drafts from '@/lib/drafts'
-
 /*
  * Helpers to display task information
  */
@@ -8,6 +6,13 @@ export const taskMixin = {
     currentFps() {
       const task = this.getTask()
       if (!task) return 25
+      // An entity can override the production fps via data.fps; use it so
+      // the player builds its frame model on the rate the video was
+      // actually rendered at (otherwise frames get duplicated/dropped).
+      // The entity may be a Shot, Edit, Sequence, Episode or Asset, each
+      // in its own store map — task.entity is only { id } here.
+      const entityFps = parseFloat(this.getTaskEntity(task)?.data?.fps)
+      if (entityFps) return entityFps
       return parseInt(this.productionMap.get(task.project_id)?.fps) || 25
     },
 
@@ -26,6 +31,19 @@ export const taskMixin = {
       return this.currentTask || this.task
     },
 
+    getTaskEntity(task) {
+      const getterByType = {
+        Shot: 'shotMap',
+        Episode: 'episodeMap',
+        Sequence: 'sequenceMap',
+        Edit: 'editMap',
+        Asset: 'assetMap'
+      }
+      const getterName = getterByType[task?.entity_type_name]
+      if (!getterName || !task?.entity?.id) return null
+      return this.$store.getters[getterName]?.get(task.entity.id) || null
+    },
+
     getComments() {
       return this.currentTaskComments || this.taskComments
     },
@@ -40,18 +58,6 @@ export const taskMixin = {
       }
       if (this.$refs['add-comment-image-modal']) {
         this.$refs['add-comment-image-modal'].reset()
-      }
-    },
-
-    resetDraft() {
-      const task = this.getTask()
-      if (task && this.$refs['add-comment']) {
-        const draft = drafts.getTaskDraft(task.id)
-        if (draft) {
-          this.$refs['add-comment'].text = draft
-        } else {
-          this.$refs['add-comment'].text = ''
-        }
       }
     },
 

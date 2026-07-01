@@ -64,11 +64,11 @@
             @enter="runConfirmation"
             v-model="form.resolution"
           />
-          <div>
+          <div class="picture-field">
             <label class="label">{{ $t('productions.picture') }}</label>
-            <file-upload
-              :label="$t('main.csv.upload_file')"
-              accept=".png,.jpg,.jpeg"
+            <image-cropper
+              ref="cropperRef"
+              shape="rounded"
               @fileselected="onFileSelected"
             />
           </div>
@@ -86,104 +86,94 @@
   </div>
 </template>
 
-<script>
-import { mapGetters } from 'vuex'
+<script setup>
+import { computed, ref, toRef, watch } from 'vue'
+import { useStore } from 'vuex'
 
-import { modalMixin } from '@/components/modals/base_modal'
-
-import ComboboxStyled from '@/components/widgets/ComboboxStyled.vue'
-import FileUpload from '@/components/widgets/FileUpload.vue'
-import ModalFooter from '@/components/modals/ModalFooter.vue'
-import TextField from '@/components/widgets/TextField.vue'
-
+import { useModal } from '@/composables/modal'
 import {
   PRODUCTION_STYLE_OPTIONS,
   PRODUCTION_TYPE_OPTIONS
 } from '@/lib/productions'
 
-export default {
-  name: 'edit-production-modal',
+import ModalFooter from '@/components/modals/ModalFooter.vue'
+import ComboboxStyled from '@/components/widgets/ComboboxStyled.vue'
+import ImageCropper from '@/components/widgets/ImageCropper.vue'
+import TextField from '@/components/widgets/TextField.vue'
 
-  mixins: [modalMixin],
+const props = defineProps({
+  active: { type: Boolean, default: false },
+  isError: { type: Boolean, default: false },
+  isLoading: { type: Boolean, default: false },
+  productionToEdit: { type: Object, required: true }
+})
 
-  components: {
-    ComboboxStyled,
-    FileUpload,
-    ModalFooter,
-    TextField
-  },
+const emit = defineEmits(['cancel', 'confirm', 'fileselected'])
 
-  props: {
-    active: {
-      type: Boolean,
-      default: false
-    },
-    isError: {
-      type: Boolean,
-      default: false
-    },
-    isLoading: {
-      type: Boolean,
-      default: false
-    },
-    productionToEdit: {
-      type: Object,
-      required: true
-    }
-  },
+const store = useStore()
 
-  emits: ['cancel', 'confirm', 'fileselected'],
+useModal(toRef(props, 'active'), emit)
 
-  data() {
-    return {
-      form: {},
-      formData: null,
-      productionStyleOptions: PRODUCTION_STYLE_OPTIONS,
-      productionTypeOptions: PRODUCTION_TYPE_OPTIONS
-    }
-  },
+// State
 
-  computed: {
-    ...mapGetters(['productionStatusOptions'])
-  },
+const productionStyleOptions = PRODUCTION_STYLE_OPTIONS
+const productionTypeOptions = PRODUCTION_TYPE_OPTIONS
 
-  methods: {
-    runConfirmation() {
-      this.$emit('confirm', this.form)
-    },
+const form = ref({})
+const cropperRef = ref(null)
 
-    onFileSelected(formData) {
-      this.formData = formData
-      this.$emit('fileselected', formData)
-    },
+// Computed
 
-    resetForm() {
-      this.form = {
-        name: this.productionToEdit.name,
-        code: this.productionToEdit.code,
-        project_status_id: this.productionToEdit.project_status_id,
-        production_type: this.productionToEdit.production_type || 'short',
-        production_style: this.productionToEdit.production_style || '2d3d',
-        fps: this.productionToEdit.fps,
-        ratio: this.productionToEdit.ratio,
-        resolution: this.productionToEdit.resolution
-      }
-    }
-  },
+const productionStatusOptions = computed(
+  () => store.getters.productionStatusOptions
+)
 
-  watch: {
-    productionToEdit: {
-      immediate: true,
-      handler() {
-        this.resetForm()
-      }
-    }
+// Functions
+
+const resetForm = () => {
+  form.value = {
+    name: props.productionToEdit.name,
+    code: props.productionToEdit.code,
+    project_status_id: props.productionToEdit.project_status_id,
+    production_type: props.productionToEdit.production_type || 'short',
+    production_style: props.productionToEdit.production_style || '2d3d',
+    fps: props.productionToEdit.fps,
+    ratio: props.productionToEdit.ratio,
+    resolution: props.productionToEdit.resolution
   }
 }
+
+const runConfirmation = async () => {
+  // If the cropper holds an image, crop it now so the parent uploads
+  // the framed version rather than the original file. The cropper also
+  // emits `fileselected` immediately when a file is picked, so the
+  // parent already has a fallback payload if cropping fails.
+  if (cropperRef.value?.hasFile) {
+    try {
+      const cropped = await cropperRef.value.cropToFormData()
+      if (cropped) emit('fileselected', cropped)
+    } catch (err) {
+      console.error(err)
+    }
+  }
+  emit('confirm', form.value)
+}
+
+const onFileSelected = formData => {
+  emit('fileselected', formData)
+}
+
+// Watchers
+
+watch(() => props.productionToEdit, resetForm, { immediate: true })
 </script>
 
 <style lang="scss" scoped>
 .box {
   padding-bottom: 1.5em;
+}
+
+.picture-field {
+  margin-top: 1.5em;
 }
 </style>

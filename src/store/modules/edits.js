@@ -19,11 +19,7 @@ import {
   sortTasks,
   sortValidationColumns
 } from '@/lib/sorting'
-import {
-  appendSelectionGrid,
-  buildSelectionGrid,
-  clearSelectionGrid
-} from '@/lib/selection'
+import { buildSelectionGrid, clearSelectionGrid } from '@/lib/selection'
 import { getFilledColumns, removeModelFromList } from '@/lib/models'
 import { minutesToDays } from '@/lib/time'
 import { buildEditIndex, indexSearch } from '@/lib/indexing'
@@ -66,7 +62,8 @@ import {
   RESET_ALL,
   CLEAR_SELECTED_EDITS,
   SET_EDIT_SELECTION,
-  CHANGE_EDIT_SORT
+  CHANGE_EDIT_SORT,
+  LOAD_TASK_END
 } from '@/store/mutation-types'
 
 const cache = {
@@ -224,14 +221,12 @@ const helpers = {
         ? state.displayedEdits.length
         : PAGE_SIZE
     const displayedEdits = result.slice(0, limit)
-    const maxX = displayedEdits.length
-    const maxY = state.nbValidationColumns
 
     state.displayedEdits = displayedEdits
     state.editFilledColumns = getFilledColumns(displayedEdits)
     helpers.setListStats(state, result)
     state.editSearchText = editSearch
-    state.editSelectionGrid = buildSelectionGrid(maxX, maxY)
+    state.editSelectionGrid = buildSelectionGrid()
   },
 
   sortStatColumns(stats, taskTypeMap) {
@@ -272,7 +267,7 @@ const initialState = {
   editFilledColumns: {},
 
   editCreated: '',
-  editSelectionGrid: {},
+  editSelectionGrid: new Set(),
 
   isEditsLoading: false,
   isEditsLoadingError: false,
@@ -633,15 +628,12 @@ const actions = {
     })
   },
 
-  deleteAllEditTasks(
-    { commit, dispatch, state },
-    { projectId, taskTypeId, selectionOnly }
-  ) {
+  deleteAllEditTasks({ dispatch }, { projectId, taskTypeId, selectionOnly }) {
     let taskIds = []
     if (selectionOnly) {
       taskIds = cache.result
-        .filter(a => a.validations.get(taskTypeId))
-        .map(a => a.validations.get(taskTypeId))
+        .filter(edit => edit.validations.get(taskTypeId))
+        .map(edit => edit.validations.get(taskTypeId))
     }
     return dispatch('deleteAllTasks', { projectId, taskTypeId, taskIds })
   },
@@ -770,9 +762,7 @@ const mutations = {
     state.displayedEdits = displayedEdits
     state.editFilledColumns = filledColumns
 
-    const maxX = state.displayedEdits.length
-    const maxY = state.nbValidationColumns
-    state.editSelectionGrid = buildSelectionGrid(maxX, maxY)
+    state.editSelectionGrid = buildSelectionGrid()
     helpers.setListStats(state, edits)
 
     if (userFilters.edit && userFilters.edit[production.id]) {
@@ -833,9 +823,7 @@ const mutations = {
       cache.edits = sortEdits(cache.edits)
       cache.editMap.set(newEdit.id, newEdit)
 
-      const maxX = state.displayedEdits.length
-      const maxY = state.nbValidationColumns
-      state.editSelectionGrid = buildSelectionGrid(maxX, maxY)
+      state.editSelectionGrid = buildSelectionGrid()
     }
     state.editEdit = {
       isLoading: false,
@@ -889,9 +877,7 @@ const mutations = {
     cache.editMap.set(edit.id, edit)
     cache.editIndex = buildEditIndex(cache.edits)
 
-    const maxX = state.displayedEdits.length
-    const maxY = state.nbValidationColumns
-    state.editSelectionGrid = buildSelectionGrid(maxX, maxY)
+    state.editSelectionGrid = buildSelectionGrid()
   },
 
   [CREATE_TASKS_END](state, { tasks }) {
@@ -925,17 +911,6 @@ const mutations = {
         state.displayedEdits.length + PAGE_SIZE
       )
       state.editFilledColumns = getFilledColumns(state.displayedEdits)
-      const previousX = Object.keys(state.editSelectionGrid).length
-      const maxX = state.displayedEdits.length
-      const maxY = state.nbValidationColumns
-      if (previousX >= 0) {
-        state.editSelectionGrid = appendSelectionGrid(
-          state.editSelectionGrid,
-          previousX,
-          maxX,
-          maxY
-        )
-      }
     }
   },
 
@@ -960,7 +935,7 @@ const mutations = {
 
   [REMOVE_SELECTED_TASK](state, validationInfo) {
     if (
-      !validationInfo.x &&
+      validationInfo.x === undefined &&
       validationInfo.task?.column &&
       cache.editMap.get(validationInfo.task.entity.id)
     ) {
@@ -970,31 +945,20 @@ const mutations = {
       validationInfo.x = list.findIndex(e => e.id === entity.id)
       validationInfo.y = state.editValidationColumns.indexOf(taskType.id)
     }
-    if (
-      state.editSelectionGrid[0] &&
-      state.editSelectionGrid[validationInfo.x]
-    ) {
-      state.editSelectionGrid[validationInfo.x][validationInfo.y] = false
-    }
+    state.editSelectionGrid.delete(`${validationInfo.x}-${validationInfo.y}`)
   },
 
   [ADD_SELECTED_TASK](state, validationInfo) {
-    if (
-      state.editSelectionGrid[0] &&
-      state.editSelectionGrid[validationInfo.x]
-    ) {
-      state.editSelectionGrid[validationInfo.x][validationInfo.y] = true
-      state.selectedEdits = new Map() // unselect all previously selected lines
-    }
+    state.editSelectionGrid.add(`${validationInfo.x}-${validationInfo.y}`)
+    state.selectedEdits = new Map() // unselect all previously selected lines
   },
 
-  [CLEAR_SELECTED_TASKS](state, validationInfo) {
+  [CLEAR_SELECTED_TASKS](state) {
     if (
       tasksStore.state.nbSelectedValidations > 0 ||
       tasksStore.state.nbSelectedTasks > 0
     ) {
-      const tmpGrid = JSON.parse(JSON.stringify(state.editSelectionGrid))
-      state.editSelectionGrid = clearSelectionGrid(tmpGrid)
+      clearSelectionGrid(state.editSelectionGrid)
     }
   },
 
@@ -1035,23 +999,28 @@ const mutations = {
     }
   },
 
+  [LOAD_TASK_END](state, task) {
+    const edit = cache.editMap.get(task.entity_id)
+    if (edit) {
+      let timeSpent = 0
+      let estimation = 0
+      edit.tasks.forEach(taskId => {
+        const t = tasksStore.state.taskMap.get(taskId)
+        if (t) {
+          timeSpent += t.duration || 0
+          estimation += t.estimation || 0
+        }
+      })
+      edit.timeSpent = timeSpent
+      edit.estimation = estimation
+    }
+  },
+
   [ADD_SELECTED_TASKS](state, selection) {
-    let tmpGrid = JSON.parse(JSON.stringify(state.editSelectionGrid))
     selection.forEach(validationInfo => {
-      if (!tmpGrid[validationInfo.x]) {
-        tmpGrid = appendSelectionGrid(
-          tmpGrid,
-          Object.keys(tmpGrid).length,
-          validationInfo.x + 1,
-          state.nbValidationColumns
-        )
-      }
-      if (tmpGrid[validationInfo.x]) {
-        tmpGrid[validationInfo.x][validationInfo.y] = true
-      }
+      state.editSelectionGrid.add(`${validationInfo.x}-${validationInfo.y}`)
     })
-    state.selectedEdits = new Map() // unselect all previously selected lines
-    state.editSelectionGrid = tmpGrid
+    state.selectedEdits = new Map()
   },
 
   [ADD_EDIT](state, { taskTypeMap, taskMap, personMap, production, edit }) {
@@ -1091,9 +1060,7 @@ const mutations = {
     state.displayedEditsLength = cache.edits.filter(e => !e.canceled).length
     state.editFilledColumns = getFilledColumns(state.displayedEdits)
 
-    const maxX = state.displayedEdits.length
-    const maxY = state.nbValidationColumns
-    state.editSelectionGrid = buildSelectionGrid(maxX, maxY)
+    state.editSelectionGrid = buildSelectionGrid()
     cache.editMap.set(edit.id, edit)
   },
 
@@ -1186,10 +1153,8 @@ const mutations = {
     }
     if (selected) {
       state.selectedEdits.set(edit.id, edit)
-      const maxX = state.displayedEdits.length
-      const maxY = state.nbValidationColumns
       // unselect previously selected tasks
-      state.editSelectionGrid = buildSelectionGrid(maxX, maxY)
+      state.editSelectionGrid = buildSelectionGrid()
     }
   },
 

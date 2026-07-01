@@ -482,6 +482,26 @@ export default {
         }
       },
 
+      'comment:update'(eventData) {
+        const commentId = eventData.comment_id
+        const taskId = eventData.task_id
+        const task = taskId ? this.taskMap.get(taskId) : null
+        if (!task && !this.taskComments[taskId]) return
+        this.loadComment({ commentId }).catch(err => {
+          // A manager may have just flipped for_client off — the client
+          // loses access and gets a 403. Keep the row but blank its
+          // content locally.
+          if (err?.status === 403 || err?.body?.status === 403) {
+            this.$store.commit('BLANK_COMMENT_CONTENT', {
+              taskId,
+              commentId
+            })
+          } else {
+            console.error(err)
+          }
+        })
+      },
+
       'task:update'(eventData) {
         if (this.taskMap.get(eventData.task_id)) {
           this.$nextTick(() => {
@@ -783,6 +803,13 @@ body {
   height: 100vh;
 }
 
+@media screen and (max-width: 768px) {
+  .page {
+    padding-left: 0.5em;
+    padding-right: 0.5em;
+  }
+}
+
 th.actions {
   min-width: 160px;
 }
@@ -919,24 +946,6 @@ tr:hover .actions a {
 tr:hover .actions.datatable-row-footer {
   position: sticky;
   right: 0;
-  border-left: 1px solid rgba(var(--border-rgb), 0.5);
-
-  &::before {
-    content: '';
-    display: block;
-    position: absolute;
-    right: calc(100% + 1px);
-    top: 0;
-    bottom: 0;
-    width: 0.75rem;
-    background: linear-gradient(
-      270deg,
-      rgba(var(--border-rgb), 0.4) 0%,
-      rgba(var(--border-rgb), 0.3) 20%,
-      rgba(var(--border-rgb), 0.2) 50%,
-      rgba(var(--border-rgb), 0) 100%
-    );
-  }
 }
 
 a {
@@ -1112,9 +1121,6 @@ input.input:focus {
   border-color: $green;
   outline: none;
 }
-.select select:required:invalid {
-  border-color: $red;
-}
 
 .button,
 .button.is-small {
@@ -1279,6 +1285,26 @@ textarea.input:focus {
 
     .button {
       border-radius: 10px;
+    }
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .modal {
+    align-items: flex-start;
+  }
+
+  .modal-content {
+    margin: 70px 0.5em 10px;
+    max-height: calc(100vh - 80px);
+
+    .box {
+      padding: 1.5em;
+
+      h1.title {
+        font-size: 1.8em;
+        margin-bottom: 0.5em;
+      }
     }
   }
 }
@@ -1681,6 +1707,18 @@ tbody:last-child .empty-line:last-child {
   }
 }
 
+// width: 0 + flex: 1 forces the link to size from flex space (not content), so the column can be resized smaller than the longest name.
+// :not(.thumbnail-wrapper, .avatar) excludes the EntityThumbnail anchor and PeopleAvatar which are also direct children of .flexrow.
+.datatable th.name .flexrow > a:not(.thumbnail-wrapper, .avatar),
+.datatable td.name .flexrow > a:not(.thumbnail-wrapper, .avatar) {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .datatable-dropdown {
   flex-grow: 1;
 }
@@ -1706,6 +1744,54 @@ tbody:last-child .empty-line:last-child {
   &:last-child th,
   &:last-child td {
     border-bottom: 1px solid var(--border);
+  }
+
+  &:last-child {
+    background: transparent !important;
+
+    td,
+    .datatable-row-header,
+    .validation-cell,
+    .hidden-validation-cell {
+      background-color: var(--background);
+    }
+
+    &:nth-child(even) td,
+    &:nth-child(even) .datatable-row-header,
+    &:nth-child(even) .validation-cell,
+    &:nth-child(even) .hidden-validation-cell {
+      background-color: var(--background-alt);
+    }
+
+    &:hover td,
+    &:hover .datatable-row-header,
+    &:hover .datatable-row-footer {
+      background-color: var(--background-hover);
+    }
+
+    &.datatable-row--selectable:hover td,
+    &.datatable-row--selectable:hover .datatable-row-header,
+    &.datatable-row--selectable:hover .datatable-row-footer {
+      background-color: var(--background-selectable);
+    }
+
+    &.selected td,
+    &.selected .datatable-row-header,
+    &.selected:hover td,
+    &.selected:hover .datatable-row-header,
+    &.selected:hover .datatable-row-footer {
+      background-color: var(--background-selected);
+    }
+
+    td:first-child,
+    td:first-child.datatable-row-header {
+      border-bottom-left-radius: 10px;
+    }
+
+    td:last-child,
+    td:last-child.datatable-row-footer {
+      border-bottom-right-radius: 10px;
+    }
   }
 
   &.datatable-row--selectable {
@@ -1766,6 +1852,20 @@ tbody:last-child .empty-line:last-child {
     background-color: transparent;
     box-shadow: none;
   }
+
+  th.metadata-descriptor {
+    padding: 0;
+  }
+
+  td.metadata-descriptor {
+    padding: 0;
+    position: relative;
+    vertical-align: top;
+
+    &.datatable-row-header {
+      position: sticky;
+    }
+  }
 }
 
 .multi-section .datatable-row {
@@ -1782,6 +1882,16 @@ tbody:last-child .empty-line:last-child {
   &:hover,
   &:hover .datatable-row-header {
     background: var(--background-hover);
+  }
+
+  &:last-child:nth-child(odd) td,
+  &:last-child:nth-child(odd) .datatable-row-header {
+    background-color: var(--background-alt);
+  }
+
+  &:last-child:nth-child(even) td,
+  &:last-child:nth-child(even) .datatable-row-header {
+    background-color: var(--background);
   }
 }
 
@@ -2417,6 +2527,14 @@ th.validation-cell {
 #app .datatable .dp__input {
   border-radius: 3px;
   height: 43px;
+}
+
+// vue-date-picker's default dark border (`#2d2d2d`) is too low-contrast
+// against the picker background. Bump it just enough to read as a
+// border without dominating, and keep the library defaults for
+// everything else (background, hover/focus stay untouched).
+.dp__theme_dark {
+  --dp-border-color: #3a3a3a !important;
 }
 
 #app .v3-emoji-picker.v3-color-theme-dark .v3-sticky {

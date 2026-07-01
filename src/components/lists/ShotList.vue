@@ -16,9 +16,9 @@
       <table-metadata-header-menu
         ref="headerMetadataMenu"
         :is-edit-allowed="
-          isMetadataColumnEditAllowed(lastMetadaDataHeaderMenuDisplayed)
+          isMetadataColumnEditAllowed(lastMetadataHeaderMenuDisplayed)
         "
-        :is-sticked="stickedColumns[lastMetadaDataHeaderMenuDisplayed]"
+        :is-sticked="stickedColumns[lastMetadataHeaderMenuDisplayed]"
         @edit-clicked="onEditMetadataClicked()"
         @delete-clicked="onDeleteMetadataClicked()"
         @sort-by-clicked="onSortByMetadataClicked()"
@@ -61,9 +61,6 @@
                 event => showMetadataHeaderMenu(descriptor.id, event)
               "
               is-stick
-              :style="{
-                'z-index': 1001
-              }"
               v-for="(descriptor, j) in stickedVisibleMetadataDescriptors"
             />
 
@@ -267,7 +264,7 @@
                   max_retakes: !isMaxRetakes
                 }"
                 v-model="metadataDisplayHeaders"
-                v-show="columnSelectorDisplayed"
+                v-model:is-open="columnSelectorDisplayed"
                 v-if="displaySettings.showInfos"
               />
 
@@ -349,7 +346,10 @@
                 class="metadata-descriptor datatable-row-header"
                 :title="shot.data ? shot.data[descriptor.field_name] : ''"
                 :style="{
-                  'z-index': 1000 - i - k * 100, // Needed for combo to be above the next cell
+                  'z-index':
+                    descriptor.data_type === 'taglist'
+                      ? 1000 - (getIndex(i, k) % 1000) // Needed for combo to be above the next cell
+                      : undefined,
                   left: offsets['editor-' + j]
                     ? `${offsets['editor-' + j]}px`
                     : '0'
@@ -749,7 +749,7 @@
         </template>
       </table>
     </div>
-    <table-info :is-loading="isLoading" :is-error="isError" />
+    <table-info :is-loading="isLoading" :is-error="isError" big-cells />
 
     <div
       class="has-text-centered"
@@ -914,7 +914,7 @@ export default {
       type: 'shot',
       hiddenColumns: {},
       lastHeaderMenuDisplayed: null,
-      lastMetadaDataHeaderMenuDisplayed: null,
+      lastMetadataHeaderMenuDisplayed: null,
       lastHeaderMenuDisplayedIndexInGrid: null,
       lastSelectedShot: null,
       lastSelection: null,
@@ -1039,7 +1039,7 @@ export default {
 
     isSelected(indexInGroup, groupIndex, columnIndex) {
       const lineIndex = this.getIndex(indexInGroup, groupIndex)
-      return this.shotSelectionGrid[lineIndex][columnIndex]
+      return this.shotSelectionGrid.has(`${lineIndex}-${columnIndex}`)
     },
 
     isCastingReady(shot, columnId) {
@@ -1176,8 +1176,8 @@ export default {
     },
 
     metadataStickColumnClicked(event) {
-      this.toggleStickedColumns(this.lastMetadaDataHeaderMenuDisplayed)
-      this.showMetadataHeaderMenu(this.lastMetadaDataHeaderMenuDisplayed, event)
+      this.toggleStickedColumns(this.lastMetadataHeaderMenuDisplayed)
+      this.showMetadataHeaderMenu(this.lastMetadataHeaderMenuDisplayed, event)
     },
 
     updateOffsets() {
@@ -1261,9 +1261,9 @@ th.actions {
   color: inherit;
 }
 
-.name.shot-name {
+thead .name.shot-name {
   min-width: 110px;
-  width: 110px;
+  width: 300px;
 }
 
 .episode {
@@ -1378,7 +1378,6 @@ input[type='number'] {
 
 td.metadata-descriptor {
   height: 3.1rem;
-  max-width: 120px;
   padding: 0;
 }
 

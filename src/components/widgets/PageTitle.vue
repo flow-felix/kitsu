@@ -10,20 +10,17 @@
   </h1>
 </template>
 
-<script>
-export default {
-  name: 'page-title',
-  props: {
-    text: {
-      default: '',
-      type: String
-    },
-    bold: {
-      default: false,
-      type: Boolean
-    }
+<script setup>
+defineProps({
+  text: {
+    default: '',
+    type: String
+  },
+  bold: {
+    default: false,
+    type: Boolean
   }
-}
+})
 </script>
 
 <style lang="scss" scoped>
@@ -35,5 +32,13 @@ export default {
   font-weight: 500;
   letter-spacing: 1px;
   text-transform: uppercase;
+  margin-bottom: 0;
+}
+
+@media screen and (max-width: 768px) {
+  .title {
+    font-size: 1.5em;
+    letter-spacing: 0;
+  }
 }
 </style>

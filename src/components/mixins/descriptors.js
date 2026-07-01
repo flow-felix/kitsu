@@ -4,6 +4,30 @@
  */
 import { mapGetters } from 'vuex'
 
+// Descriptor choices are static per descriptor — no need to reparse them
+// for every row. Cache keyed by descriptor.id, cleared when it grows too large.
+const _checklistValuesCache = new Map()
+
+export const getDescriptorChecklistValues = descriptor => {
+  const cached = _checklistValuesCache.get(descriptor.id)
+  if (cached) return cached
+  const values = descriptor.choices.reduce((result, choice) => {
+    if (choice && typeof choice === 'string' && choice.startsWith('[x] ')) {
+      result.push({ text: choice.slice(4), checked: true })
+    } else if (
+      choice &&
+      typeof choice === 'string' &&
+      choice.startsWith('[ ] ')
+    ) {
+      result.push({ text: choice.slice(4), checked: false })
+    }
+    return result
+  }, [])
+  const result = values.length === descriptor.choices.length ? values : []
+  _checklistValuesCache.set(descriptor.id, result)
+  return result
+}
+
 export const descriptorMixin = {
   emits: [
     'add-metadata',
@@ -102,7 +126,7 @@ export const descriptorMixin = {
     },
 
     onSortByMetadataClicked() {
-      const columnId = this.lastMetadaDataHeaderMenuDisplayed
+      const columnId = this.lastMetadataHeaderMenuDisplayed
       const column = this.currentProduction.descriptors.find(
         d => d.id === columnId
       )
@@ -116,12 +140,12 @@ export const descriptorMixin = {
     },
 
     onEditMetadataClicked() {
-      this.$emit('edit-metadata', this.lastMetadaDataHeaderMenuDisplayed)
+      this.$emit('edit-metadata', this.lastMetadataHeaderMenuDisplayed)
       this.showMetadataHeaderMenu()
     },
 
     onDeleteMetadataClicked() {
-      this.$emit('delete-metadata', this.lastMetadaDataHeaderMenuDisplayed)
+      this.$emit('delete-metadata', this.lastMetadataHeaderMenuDisplayed)
       this.showMetadataHeaderMenu()
     },
 
@@ -140,7 +164,7 @@ export const descriptorMixin = {
         headerMenuEl.style.top = top + 'px'
         headerMenuEl.style.width = width + 'px'
       }
-      this.lastMetadaDataHeaderMenuDisplayed = columnId
+      this.lastMetadataHeaderMenuDisplayed = columnId
     },
 
     getDescriptorChoicesOptions(descriptor, emptyChoice = true) {
@@ -169,21 +193,7 @@ export const descriptorMixin = {
       }
     },
 
-    getDescriptorChecklistValues(descriptor) {
-      const values = descriptor.choices.reduce((result, choice) => {
-        if (choice && typeof choice === 'string' && choice.startsWith('[x] ')) {
-          result.push({ text: choice.slice(4), checked: true })
-        } else if (
-          choice &&
-          typeof choice === 'string' &&
-          choice.startsWith('[ ] ')
-        ) {
-          result.push({ text: choice.slice(4), checked: false })
-        }
-        return result
-      }, [])
-      return values.length === descriptor.choices.length ? values : []
-    },
+    getDescriptorChecklistValues,
 
     getMetadataChecklistValues(descriptor, entity) {
       let values

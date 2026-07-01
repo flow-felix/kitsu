@@ -1,5 +1,5 @@
 <template>
-  <div class="login hero is-fullheight">
+  <div class="login hero is-fullheight" v-if="!isAuthenticated">
     <div class="container has-text-centered">
       <div
         class="box has-text-left"
@@ -15,14 +15,15 @@
         <form v-if="!(isMissingOTP || isWrongOTP)">
           <div class="field" v-if="mainConfig?.saml_enabled">
             <p class="control">
-              <a
-                class="button is-fullwidth"
-                :class="{
-                  'is-loading': isLoginLoading
-                }"
-                href="/api/auth/saml/login"
-              >
+              <a class="button is-fullwidth" href="/api/auth/saml/login">
                 {{ loginSAMLButtonInfo }}
+              </a>
+            </p>
+          </div>
+          <div class="field" v-if="mainConfig?.oidc_enabled">
+            <p class="control">
+              <a class="button is-fullwidth" href="/api/auth/oidc/login">
+                {{ loginOIDCButtonInfo }}
               </a>
             </p>
           </div>
@@ -142,6 +143,7 @@ export default {
   computed: {
     ...mapGetters([
       'isDarkTheme',
+      'isAuthenticated',
       'isLoginLoading',
       'isLoginError',
       'mainConfig'
@@ -154,6 +156,16 @@ export default {
         })
       } else {
         return this.$t('login.saml')
+      }
+    },
+
+    loginOIDCButtonInfo() {
+      if (this.mainConfig?.oidc_idp_name) {
+        return this.$t('login.login_with_oidc', {
+          oidc_idp_name: this.mainConfig.oidc_idp_name
+        })
+      } else {
+        return this.$t('login.oidc')
       }
     }
   },

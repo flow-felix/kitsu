@@ -1,6 +1,8 @@
 import client from '@/store/api/client'
 import { buildQueryString } from '@/lib/query'
 
+const toBool = value => value === true || value === 'true'
+
 export default {
   getOrganisations() {
     return client.pget('/api/data/organisations')
@@ -37,7 +39,11 @@ export default {
   },
 
   getPeople() {
-    return client.pget('/api/data/persons?relations=true')
+    return client.pget('/api/data/persons?relations=true&is_guest=false')
+  },
+
+  getGuests() {
+    return client.pget('/api/data/persons?relations=true&is_guest=true')
   },
 
   getPerson(personId) {
@@ -58,6 +64,7 @@ export default {
       daily_salary: person.daily_salary,
       departments: person.departments,
       studio_id: person.studio_id,
+      country: person.country,
       is_bot: person.is_bot,
       expiration_date: person.expiration_date?.toJSON().slice(0, 10)
     }
@@ -68,11 +75,19 @@ export default {
     return client.pget(`/api/actions/persons/${person.id}/invite`)
   },
 
+  getResetPasswordLink(person) {
+    return client.ppost(`/api/actions/persons/${person.id}/reset-password-link`)
+  },
+
   generateToken(person) {
     const data = {
       expiration_date: person.expiration_date?.toJSON().slice(0, 10) || null
     }
     return client.pput(`/api/data/persons/${person.id}`, data)
+  },
+
+  setPersonActive(personId, active) {
+    return client.pput(`/api/data/persons/${personId}`, { active })
   },
 
   updatePerson(person) {
@@ -89,18 +104,20 @@ export default {
       position: person.position,
       seniority: person.seniority,
       daily_salary: person.daily_salary,
-      notifications_enabled: person.notifications_enabled === 'true',
-      notifications_slack_enabled:
-        person.notifications_slack_enabled === 'true',
+      notifications_enabled: toBool(person.notifications_enabled),
+      notifications_slack_enabled: toBool(person.notifications_slack_enabled),
       notifications_slack_userid: person.notifications_slack_userid,
-      notifications_mattermost_enabled:
-        person.notifications_mattermost_enabled === 'true',
+      notifications_mattermost_enabled: toBool(
+        person.notifications_mattermost_enabled
+      ),
       notifications_mattermost_userid: person.notifications_mattermost_userid,
-      notifications_discord_enabled:
-        person.notifications_discord_enabled === 'true',
+      notifications_discord_enabled: toBool(
+        person.notifications_discord_enabled
+      ),
       notifications_discord_userid: person.notifications_discord_userid,
       departments: person.departments,
-      studio_id: person.studio_id
+      studio_id: person.studio_id,
+      country: person.country
     }
     return client.pput(`/api/data/persons/${person.id}`, data)
   },

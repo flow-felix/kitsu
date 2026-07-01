@@ -1,5 +1,4 @@
 import Bowser from 'bowser'
-import { nextTick } from 'vue'
 
 import auth from '@/lib/auth'
 import init from '@/lib/init'
@@ -16,6 +15,7 @@ import Login from '@/components/pages/Login.vue'
 import Main from '@/components/Main.vue'
 
 const AllTasks = () => import('@/components/pages/AllTasks.vue')
+const SharedPlaylist = () => import('@/components/pages/SharedPlaylist.vue')
 const Asset = () => import('@/components/pages/Asset.vue')
 const AssetLibrary = () => import('@/components/pages/AssetLibrary.vue')
 const Assets = () => import('@/components/pages/Assets.vue')
@@ -56,6 +56,9 @@ const ProductionNewsFeed = () =>
   import('@/components/pages/ProductionNewsFeed.vue')
 const ProductionQuota = () => import('@/components/pages/ProductionQuota.vue')
 const Productions = () => import('@/components/pages/Productions.vue')
+const ProjectTemplates = () => import('@/components/pages/ProjectTemplates.vue')
+const ProjectTemplateSettings = () =>
+  import('@/components/pages/ProjectTemplateSettings.vue')
 const ProductionSchedule = () =>
   import('@/components/pages/ProductionSchedule.vue')
 const ProductionSettings = () =>
@@ -103,7 +106,9 @@ const ADMIN_PAGES = [
   'team-schedule',
   'settings',
   'status-automations',
-  'studios'
+  'studios',
+  'project-templates',
+  'project-template-settings'
 ]
 
 export const routes = [
@@ -237,6 +242,17 @@ export const routes = [
         path: 'studios',
         name: 'studios',
         component: Studios
+      },
+
+      {
+        path: 'project-templates',
+        name: 'project-templates',
+        component: ProjectTemplates
+      },
+      {
+        path: 'project-templates/:template_id',
+        name: 'project-template-settings',
+        component: ProjectTemplateSettings
       },
 
       {
@@ -880,20 +896,6 @@ export const routes = [
     }
   },
   {
-    path: '/logout',
-    name: 'logout',
-    beforeEnter: (to, from, next) => {
-      next('/login')
-      nextTick(async () => {
-        try {
-          await store.dispatch('logout')
-        } catch (error) {
-          console.error('An error occurred while logout', error)
-        }
-      })
-    }
-  },
-  {
     path: '/first-connection',
     component: FirstConnection,
     name: 'first-connection'
@@ -917,6 +919,12 @@ export const routes = [
     path: '/wrong-browser',
     component: WrongBrowser,
     name: 'wrong-browser'
+  },
+
+  {
+    path: '/playlists/shared/:token',
+    component: SharedPlaylist,
+    name: 'shared-playlist'
   },
 
   {

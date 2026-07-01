@@ -1,5 +1,5 @@
 <template>
-  <td class="name">
+  <td>
     <div
       class="tag"
       :class="{ canceled: disable }"
@@ -14,43 +14,21 @@
   </td>
 </template>
 
-<script>
-import { mapGetters } from 'vuex'
+<script setup>
+import { computed } from 'vue'
 
-export default {
-  name: 'task-status-cell',
+import { useTaskStatusStyle } from '@/composables/taskStatus'
 
-  props: {
-    entry: {
-      type: Object,
-      default: () => {}
-    },
-    disable: {
-      type: Boolean,
-      default: false
-    }
-  },
+const { backgroundColor, color: statusColor } = useTaskStatusStyle()
 
-  computed: {
-    ...mapGetters(['isDarkTheme']),
+const props = defineProps({
+  disable: { type: Boolean, default: false },
+  entry: { type: Object, default: () => ({}) }
+})
 
-    color() {
-      if (this.entry.name === 'Todo' && this.isDarkTheme) {
-        return '#5F626A'
-      } else {
-        return this.entry.color
-      }
-    },
+const color = computed(() => backgroundColor(props.entry))
 
-    textColor() {
-      if (this.entry.name === 'Todo' && !this.isDarkTheme) {
-        return '#333'
-      } else {
-        return 'white'
-      }
-    }
-  }
-}
+const textColor = computed(() => statusColor(props.entry))
 </script>
 
 <style lang="scss" scoped>

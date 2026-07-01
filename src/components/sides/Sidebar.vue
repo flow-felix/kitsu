@@ -132,7 +132,12 @@
                   params: { plugin_id: plugin.plugin_id }
                 }"
               >
-                <icon :name="plugin.icon" />
+                <icon
+                  class="nav-icon"
+                  :name="plugin.icon"
+                  :size="20"
+                  :stroke-width="1.5"
+                />
                 {{ plugin.name }}
               </router-link>
             </p>
@@ -204,6 +209,12 @@
               </router-link>
             </p>
             <p @click="toggleSidebar()">
+              <router-link :to="{ name: 'project-templates' }">
+                <layers-icon class="nav-icon" />
+                {{ $t('project_templates.title') }}
+              </router-link>
+            </p>
+            <p @click="toggleSidebar()">
               <router-link :to="{ name: 'backgrounds' }">
                 <globe-icon class="nav-icon" />
                 {{ $t('backgrounds.title') }}
@@ -246,6 +257,7 @@ import {
   ComputerIcon,
   EggIcon,
   GlobeIcon,
+  LayersIcon,
   Rows4Icon
 } from 'lucide-vue-next'
 import { defineAsyncComponent } from 'vue'
@@ -266,6 +278,7 @@ export default {
     GlobeIcon,
     Icon,
     KitsuIcon,
+    LayersIcon,
     Rows4Icon
   },
 
@@ -429,10 +442,13 @@ p:hover {
 }
 
 @media screen and (max-width: 768px) {
+  .company-logo {
+    width: auto;
+  }
+
   .company-logo img {
-    width: 40px;
+    max-width: 100%;
     margin: 0;
-    flex: 1;
   }
 
   .home-link {

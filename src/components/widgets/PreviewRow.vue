@@ -11,36 +11,34 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { computed } from 'vue'
+import { useStore } from 'vuex'
+
+import { formatRevision } from '@/lib/preview'
+
 import ButtonLink from '@/components/widgets/ButtonLink.vue'
 
-export default {
-  name: 'preview-row',
-  components: {
-    ButtonLink
+const props = defineProps({
+  preview: {
+    type: Object,
+    default: () => {}
   },
-  props: {
-    preview: {
-      type: Object,
-      default: () => {}
-    },
-    selected: {
-      type: Boolean,
-      default: false
-    },
-    previewPath: {
-      type: Object,
-      default: () => {}
-    }
+  selected: {
+    type: Boolean,
+    default: false
   },
-  computed: {
-    label() {
-      const label = `v${this.preview.revision}`
-      return label
-    }
-  },
-  methods: {}
-}
+  previewPath: {
+    type: Object,
+    default: () => {}
+  }
+})
+
+const store = useStore()
+
+const label = computed(() =>
+  formatRevision(props.preview.revision, store.getters.currentProduction)
+)
 </script>
 
 <style lang="scss" scoped>

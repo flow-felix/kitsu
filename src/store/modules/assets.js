@@ -22,11 +22,7 @@ import {
   sortTasks,
   sortValidationColumns
 } from '@/lib/sorting'
-import {
-  appendSelectionGrid,
-  buildSelectionGrid,
-  clearSelectionGrid
-} from '@/lib/selection'
+import { buildSelectionGrid, clearSelectionGrid } from '@/lib/selection'
 import {
   getFilledColumns,
   groupEntitiesByParents,
@@ -81,7 +77,8 @@ import {
   CLEAR_SELECTED_ASSETS,
   SET_ASSET_SELECTION,
   LOAD_SHARED_ASSETS_END,
-  LOAD_UNSHARED_ASSETS_END
+  LOAD_UNSHARED_ASSETS_END,
+  LOAD_TASK_END
 } from '@/store/mutation-types'
 
 const helpers = {
@@ -250,14 +247,11 @@ const helpers = {
         ? state.displayedAssets.length
         : PAGE_SIZE
     const displayedAssets = result.slice(0, limit)
-    const maxX = displayedAssets.length
-    const maxY = state.nbValidationColumns
-
     state.displayedAssets = displayedAssets
     state.assetFilledColumns = getFilledColumns(displayedAssets)
     helpers.setListStats(state, result)
     state.assetSearchText = query
-    state.assetSelectionGrid = buildSelectionGrid(maxX, maxY)
+    state.assetSelectionGrid = buildSelectionGrid()
   },
 
   buildResultForSharedAssets(state, { assetSearch }) {
@@ -291,7 +285,7 @@ const initialState = {
   displayedAssetsEstimation: 0,
   assetFilledColumns: {},
   assetSearchText: '',
-  assetSelectionGrid: {},
+  assetSelectionGrid: new Set(),
   assetSearchQueries: [],
   assetSearchFilterGroups: [],
   assetSorting: [],
@@ -391,12 +385,13 @@ const getters = {
 }
 
 const actions = {
-  loadAssets(
-    { commit, state, rootGetters },
+  async loadAssets(
+    { commit, dispatch, state, rootGetters },
     { all = false, withShared = true, withTasks = true } = {}
   ) {
     const assetTypeMap = rootGetters.assetTypeMap
     const production = rootGetters.currentProduction
+    if (!production) return []
     let episode = rootGetters.currentEpisode
     const isTVShow = rootGetters.isTVShow
     const userFilters = rootGetters.userFilters
@@ -405,25 +400,29 @@ const actions = {
     const taskTypeMap = rootGetters.taskTypeMap
     const taskMap = rootGetters.taskMap
 
-    if (isTVShow && !episode) {
-      // If it's tv show and if we don't have any episode set,
-      // we use the first one.
-      episode = rootGetters.episodes.length > 0 ? rootGetters.episodes[0] : null
-      if (!episode) {
-        return []
-      }
-      commit(SET_CURRENT_EPISODE, episode.id)
-    }
-
     if (isTVShow && !episode && !all) {
-      return []
+      // If it's a TV show and no episode is set, try to load episodes
+      // first, then pick the first one.
+      if (rootGetters.episodes.length === 0) {
+        await dispatch('loadEpisodes')
+        // loadEpisodes may resolve currentEpisode from the route (e.g. "all").
+        episode = rootGetters.currentEpisode
+      }
+      if (!episode) {
+        episode =
+          rootGetters.episodes.length > 0 ? rootGetters.episodes[0] : null
+        if (!episode) {
+          return []
+        }
+        commit(SET_CURRENT_EPISODE, episode.id)
+      }
     }
 
     if (state.isAssetsLoading) {
-      return []
+      return cache.assets
     }
 
-    if (all) {
+    if (all || episode?.id === 'all') {
       episode = null // Do not filter by episode
     }
 
@@ -699,8 +698,8 @@ const actions = {
     })
   },
 
-  setAssetTypeListScrollPosition({ commit }) {
-    commit(SET_PRODUCTION_ASSET_TYPE_LIST_SCROLL_POSITION)
+  setAssetTypeListScrollPosition({ commit }, scrollPosition) {
+    commit(SET_PRODUCTION_ASSET_TYPE_LIST_SCROLL_POSITION, scrollPosition)
   },
 
   computeAssetTypeStats({ commit, rootGetters }) {
@@ -798,8 +797,8 @@ const actions = {
     let taskIds = []
     if (selectionOnly) {
       taskIds = cache.result
-        .filter(a => a.validations.get(taskTypeId))
-        .map(a => a.validations.get(taskTypeId))
+        .filter(asset => asset.validations.get(taskTypeId))
+        .map(asset => asset.validations.get(taskTypeId))
     }
     return dispatch('deleteAllTasks', { projectId, taskTypeId, taskIds })
   },
@@ -893,6 +892,8 @@ const mutations = {
     state.assetSearchFilterGroups = []
 
     state.selectedAssets = new Map()
+    state.isAssetsLoading = false
+    state.isAssetsLoadingError = false
   },
 
   [LOAD_ASSETS_START](state) {
@@ -987,9 +988,7 @@ const mutations = {
     state.displayedAssetTypes = assetTypes
     state.displayedAssetTypesLength = assetTypes.length
 
-    const maxX = state.displayedAssets.length
-    const maxY = state.nbValidationColumns
-    state.assetSelectionGrid = buildSelectionGrid(maxX, maxY)
+    state.assetSelectionGrid = buildSelectionGrid()
 
     state.assetSearchQueries = userFilters.asset?.[production.id] || []
 
@@ -1083,9 +1082,7 @@ const mutations = {
       helpers.setListStats(state, cache.assets)
       state.assetFilledColumns = getFilledColumns(state.displayedAssets)
 
-      const maxX = state.displayedAssets.length
-      const maxY = state.nbValidationColumns
-      state.assetSelectionGrid = buildSelectionGrid(maxX, maxY)
+      state.assetSelectionGrid = buildSelectionGrid()
     }
   },
 
@@ -1164,9 +1161,7 @@ const mutations = {
       state.displayedAssetsLength = cache.assets.filter(a => !a.canceled).length
       state.displayedAssetsCount = cache.assets.length
 
-      const maxX = state.displayedAssets.length
-      const maxY = state.nbValidationColumns
-      state.assetSelectionGrid = buildSelectionGrid(maxX, maxY)
+      state.assetSelectionGrid = buildSelectionGrid()
       cache.assetMap.set(newAsset.id, newAsset)
     }
     if (newAsset.description && !state.isAssetDescription) {
@@ -1204,6 +1199,23 @@ const mutations = {
   },
 
   [NEW_TASK_COMMENT_END](state, { comment, taskId }) {},
+
+  [LOAD_TASK_END](state, task) {
+    const asset = cache.assetMap.get(task.entity_id)
+    if (asset) {
+      let timeSpent = 0
+      let estimation = 0
+      asset.tasks.forEach(taskId => {
+        const t = tasksStore.state.taskMap.get(taskId)
+        if (t) {
+          timeSpent += t.duration || 0
+          estimation += t.estimation || 0
+        }
+      })
+      asset.timeSpent = timeSpent
+      asset.estimation = estimation
+    }
+  },
 
   [SET_ASSET_SEARCH](state, payload) {
     payload.sorting = state.assetSorting
@@ -1255,17 +1267,6 @@ const mutations = {
         state.displayedAssets.length + PAGE_SIZE
       )
       state.assetFilledColumns = getFilledColumns(state.displayedAssets)
-      const previousX = Object.keys(state.assetSelectionGrid).length
-      const maxX = state.displayedAssets.length
-      const maxY = state.nbValidationColumns
-      if (previousX >= 0) {
-        state.assetSelectionGrid = appendSelectionGrid(
-          state.assetSelectionGrid,
-          previousX,
-          maxX,
-          maxY
-        )
-      }
     }
   },
 
@@ -1292,7 +1293,7 @@ const mutations = {
 
   [REMOVE_SELECTED_TASK](state, validationInfo) {
     if (
-      !validationInfo.x &&
+      validationInfo.x === undefined &&
       validationInfo.task?.column &&
       cache.assetMap.get(validationInfo.task.entity.id)
     ) {
@@ -1302,50 +1303,27 @@ const mutations = {
       validationInfo.x = list.findIndex(e => e.id === entity.id)
       validationInfo.y = state.assetValidationColumns.indexOf(taskType.id)
     }
-    if (
-      state.assetSelectionGrid[0] &&
-      state.assetSelectionGrid[validationInfo.x]
-    ) {
-      state.assetSelectionGrid[validationInfo.x][validationInfo.y] = false
-    }
+    state.assetSelectionGrid.delete(`${validationInfo.x}-${validationInfo.y}`)
   },
 
   [ADD_SELECTED_TASK](state, validationInfo) {
-    if (
-      state.assetSelectionGrid[0] &&
-      state.assetSelectionGrid[validationInfo.x]
-    ) {
-      state.assetSelectionGrid[validationInfo.x][validationInfo.y] = true
-      state.selectedAssets = new Map() // unselect all previously selected lines
-    }
+    state.assetSelectionGrid.add(`${validationInfo.x}-${validationInfo.y}`)
+    state.selectedAssets = new Map()
   },
 
   [ADD_SELECTED_TASKS](state, selection) {
-    let tmpGrid = JSON.parse(JSON.stringify(state.assetSelectionGrid))
     selection.forEach(validationInfo => {
-      if (!tmpGrid[validationInfo.x]) {
-        tmpGrid = appendSelectionGrid(
-          tmpGrid,
-          Object.keys(tmpGrid).length,
-          validationInfo.x + 1,
-          state.nbValidationColumns
-        )
-      }
-      if (tmpGrid[validationInfo.x]) {
-        tmpGrid[validationInfo.x][validationInfo.y] = true
-      }
+      state.assetSelectionGrid.add(`${validationInfo.x}-${validationInfo.y}`)
     })
-    state.selectedAssets = new Map() // unselect all previously selected lines
-    state.assetSelectionGrid = tmpGrid
+    state.selectedAssets = new Map()
   },
 
-  [CLEAR_SELECTED_TASKS](state, validationInfo) {
+  [CLEAR_SELECTED_TASKS](state) {
     if (
       tasksStore.state.nbSelectedValidations > 0 ||
       tasksStore.state.nbSelectedTasks > 0
     ) {
-      const tmpGrid = JSON.parse(JSON.stringify(state.assetSelectionGrid))
-      state.assetSelectionGrid = clearSelectionGrid(tmpGrid)
+      clearSelectionGrid(state.assetSelectionGrid)
     }
   },
 
@@ -1473,10 +1451,7 @@ const mutations = {
     }
     if (selected) {
       state.selectedAssets.set(asset.id, asset)
-      const maxX = state.displayedAssets.length
-      const maxY = state.nbValidationColumns
-      // unselect previously selected tasks
-      state.assetSelectionGrid = buildSelectionGrid(maxX, maxY)
+      state.assetSelectionGrid = buildSelectionGrid()
     }
   },
 

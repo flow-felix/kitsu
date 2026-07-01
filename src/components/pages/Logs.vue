@@ -1,79 +1,44 @@
 <template>
   <div class="logs fixed-page">
-    <div class="tabs logs-tabs">
-      <ul>
-        <li :class="{ 'is-active': isActiveTab('events') }">
-          <a @click="activeTab = 'events'">
-            {{ $t('logs.title') }}
-          </a>
-        </li>
-        <li :class="{ 'is-active': isActiveTab('preview_files') }">
-          <a @click="activeTab = 'preview_files'">
-            {{ $t('logs.preview_files.title') }}
-          </a>
-        </li>
-      </ul>
-    </div>
-    <events v-if="isActiveTab('events')" />
-    <preview-files v-else-if="isActiveTab('preview_files')" />
+    <route-tabs :active-tab="activeTab" :tabs="tabs" />
+    <event-logs v-if="activeTab === 'events'" />
+    <login-logs v-else-if="activeTab === 'logins'" />
+    <preview-files v-else-if="activeTab === 'preview_files'" />
   </div>
 </template>
 
-<script>
-import Events from '@/components/pages/logs/Events.vue'
+<script setup>
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
+
+import EventLogs from '@/components/pages/logs/EventLogs.vue'
+import LoginLogs from '@/components/pages/logs/LoginLogs.vue'
 import PreviewFiles from '@/components/pages/logs/PreviewFiles.vue'
+import RouteTabs from '@/components/widgets/RouteTabs.vue'
 
-export default {
-  name: 'logs',
+const { t } = useI18n()
+const route = useRoute()
 
-  components: {
-    Events,
-    PreviewFiles
-  },
+// Computed
 
-  data() {
-    return {
-      activeTab: 'events'
-    }
-  },
+const activeTab = computed(() => route.query.tab || 'events')
 
-  mounted() {
-    if (this.$route.query.tab) {
-      this.activeTab = this.$route.query.tab
-    }
-  },
-
-  methods: {
-    isActiveTab(tab) {
-      return this.activeTab === tab
-    }
-  },
-
-  watch: {
-    activeTab() {
-      if (this.$route.query.tab !== this.activeTab) {
-        this.$router.push({
-          query: {
-            tab: this.activeTab
-          }
-        })
-      }
-    }
-  }
-}
+const tabs = computed(() => [
+  { name: 'events', label: t('logs.audit.title') },
+  { name: 'logins', label: t('logs.logins.title') },
+  { name: 'preview_files', label: t('logs.preview_files.title') }
+])
 </script>
 
 <style lang="scss" scoped>
 .fixed-page {
   margin-top: 60px;
-  padding: 2em;
   overflow: scroll;
+  padding: 2em;
 }
 
-.tabs.logs-tabs {
+:deep(.tabs) {
   overflow: visible;
-  ul {
-    margin-left: 0;
-  }
 }
 </style>

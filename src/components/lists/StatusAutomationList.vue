@@ -34,7 +34,7 @@
             :key="statusAutomation.id"
             v-for="statusAutomation in statusAutomations"
           >
-            <td scope="row" class="name">
+            <td scope="row" class="name entity-type">
               <div class="flexrow">
                 <span
                   class="flexrow-item"
@@ -74,6 +74,9 @@
             />
             <td class="name out-task-status" v-else></td>
             <td class="import-last-revision">
+              <span class="mobile-label">
+                {{ $t('status_automations.fields.import_last_revision') }}:
+              </span>
               {{ formatBoolean(statusAutomation.import_last_revision) }}
             </td>
             <row-actions-cell
@@ -81,10 +84,10 @@
               @delete-clicked="$emit('delete-clicked', statusAutomation)"
               v-if="isEditable"
             />
-            <td v-else>
+            <td class="actions has-text-right" v-else>
               <button
                 class="button"
-                @click="removeStatusAutomation(statusAutomation.id)"
+                @click="$emit('remove-clicked', statusAutomation.id)"
               >
                 {{ $t('main.remove') }}
               </button>
@@ -94,90 +97,64 @@
       </table>
     </div>
 
-    <table-info :is-loading="isLoading" :is-error="isError" />
+    <table-info
+      :is-loading="isLoading"
+      :is-error="isError"
+      :with-thumbnail="false"
+    />
 
     <p class="has-text-centered nb-status-automations">
-      {{ statusAutomations.length }}
-      {{ $tc('status_automations.number', statusAutomations.length) }}
+      {{ entries.length }}
+      {{ $t('status_automations.number', entries.length) }}
     </p>
   </div>
 </template>
 
-<script>
+<script setup>
 import { AlertTriangleIcon } from 'lucide-vue-next'
-import { mapGetters, mapActions } from 'vuex'
-
-import { formatListMixin } from '@/components/mixins/format'
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useStore } from 'vuex'
 
 import RowActionsCell from '@/components/cells/RowActionsCell.vue'
 import TableInfo from '@/components/widgets/TableInfo.vue'
 import TaskStatusCell from '@/components/cells/TaskStatusCell.vue'
 import TaskTypeCell from '@/components/cells/TaskTypeCell.vue'
 
-export default {
-  name: 'status-automation-list',
+const { t } = useI18n()
+const store = useStore()
 
-  mixins: [formatListMixin],
+// Props / Emits
 
-  components: {
-    AlertTriangleIcon,
-    RowActionsCell,
-    TableInfo,
-    TaskStatusCell,
-    TaskTypeCell
-  },
+const props = defineProps({
+  entries: { type: Array, default: () => [] },
+  isEditable: { type: Boolean, default: false },
+  isError: { type: Boolean, default: false },
+  isLoading: { type: Boolean, default: false }
+})
 
-  props: {
-    entries: {
-      type: Array,
-      default: () => []
-    },
-    isEditable: {
-      type: Boolean,
-      default: false
-    },
-    isError: {
-      type: Boolean,
-      default: false
-    },
-    isLoading: {
-      type: Boolean,
-      default: false
-    }
-  },
+defineEmits(['delete-clicked', 'edit-clicked', 'remove-clicked'])
 
-  emits: ['delete-clicked', 'edit-clicked'],
+// Computed
 
-  computed: {
-    ...mapGetters([
-      'taskStatusMap',
-      'getTaskType',
-      'isStatusAutomationDisabled',
-      'remainingStatusAutomations'
-    ]),
+const taskStatusMap = computed(() => store.getters.taskStatusMap)
+const getTaskType = computed(() => store.getters.getTaskType)
+const isStatusAutomationDisabled = computed(
+  () => store.getters.isStatusAutomationDisabled
+)
 
-    statusAutomations() {
-      return this.entries.map(statusAutomation => ({
-        ...statusAutomation,
-        entityType: this.$t(
-          `status_automations.entity_types.${statusAutomation.entity_type.toLowerCase()}`
-        )
-      }))
-    }
-  },
-  methods: {
-    ...mapActions(['removeStatusAutomationFromProduction']),
+const statusAutomations = computed(() =>
+  props.entries.map(statusAutomation => ({
+    ...statusAutomation,
+    entityType: t(
+      `status_automations.entity_types.${statusAutomation.entity_type.toLowerCase()}`
+    )
+  }))
+)
 
-    async removeStatusAutomation(statusAutomationId) {
-      await this.removeStatusAutomationFromProduction(statusAutomationId)
-      await this.$nextTick()
-      // Reselect the remainingStatusAutomations to avoid empty statusAutomationId
-      if (this.remainingStatusAutomations.length > 0) {
-        this.statusAutomationId = this.remainingStatusAutomations[0].id
-      }
-    }
-  }
-}
+// Functions
+
+const formatBoolean = value => (value ? t('main.yes') : t('main.no'))
 </script>
 
 <style lang="scss" scoped>
@@ -226,5 +203,116 @@ td.name {
 
 .nb-status-automations {
   color: var(--text);
+}
+
+.mobile-label {
+  display: none;
+}
+
+@media screen and (max-width: 768px) {
+  .datatable-wrapper {
+    overflow-x: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  table.datatable {
+    display: block;
+    background: transparent;
+  }
+
+  .datatable-head {
+    display: none;
+  }
+
+  .datatable-body {
+    display: block;
+  }
+
+  .data-list .datatable .datatable-row,
+  .data-list .datatable .datatable-row:nth-child(even),
+  .data-list .datatable .datatable-row:hover,
+  .data-list .datatable .datatable-row:last-child {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'entity entity'
+      'in-type in-status'
+      'separator separator'
+      'out-type out-status'
+      'revision revision';
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.75em;
+    margin-bottom: 0.5em;
+    background-color: var(--background) !important;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .data-list .datatable .datatable-row td,
+  .data-list .datatable .datatable-row :deep(td),
+  .data-list .datatable .datatable-row:last-child td,
+  .data-list .datatable .datatable-row:last-child:nth-child(even) td,
+  .data-list .datatable .datatable-row:last-child:hover td {
+    display: block;
+    width: auto;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background-color: transparent !important;
+  }
+
+  td.entity-type {
+    grid-area: entity;
+    font-weight: 600;
+    font-size: 1.1em;
+  }
+
+  .in-task-type {
+    grid-area: in-type;
+  }
+
+  .in-task-status {
+    grid-area: in-status;
+    justify-self: end;
+  }
+
+  .input-separator {
+    grid-area: separator;
+    color: var(--text-alt);
+    font-style: italic;
+    font-size: 0.9em;
+  }
+
+  .out-task-type {
+    grid-area: out-type;
+  }
+
+  .out-task-status {
+    grid-area: out-status;
+    justify-self: end;
+  }
+
+  .import-last-revision {
+    grid-area: revision;
+    padding-top: 0.25em !important;
+    color: var(--text-alt);
+    font-size: 0.9em;
+  }
+
+  .mobile-label {
+    display: inline;
+    font-weight: 500;
+  }
+
+  .actions,
+  :deep(.actions) {
+    display: none !important;
+  }
+
+  :deep(.tag) {
+    margin: 0;
+  }
 }
 </style>

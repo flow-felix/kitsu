@@ -22,6 +22,7 @@
       :style="{
         'min-height': `${(nbResults || 1) * 60}px`
       }"
+      @mousedown.prevent
       v-if="isSearchActive"
     >
       <div class="result-line" v-if="searchQuery.length < 3">
@@ -361,6 +362,12 @@ export default {
     z-index: 4;
     top: 20px;
     left: 10px;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .global-search-field {
+    width: 120px;
   }
 }
 

@@ -36,13 +36,13 @@
       "linked": "Lié à",
       "no_concept": "Aucun concept n'est lié à cet asset",
       "casted_in_shots": "Casté dans {nbShots} plans",
-      "delete_for_selection_hard_text": "Êtes-vous sûr de vouloir supprimer définitivement les assets sélectionnés ? Toutes les tâches, tous les commentaires et tous les aperçus associés seront également supprimés. Veuillez confirmer en tapant \"DELETE\" ci-dessous.",
-      "delete_for_selection_hard_lock_text": "DELETE",
+      "delete_for_selection_hard_text": "Êtes-vous sûr de vouloir supprimer définitivement les assets sélectionnés ? Toutes les tâches, tous les commentaires et tous les aperçus associés seront également supprimés. Veuillez confirmer en tapant \"SUPPRIMER\" ci-dessous.",
+      "delete_for_selection_hard_lock_text": "SUPPRIMER",
       "show_linked": "Afficher les assets du casting"
     },
     "asset_types": {
       "all_asset_types": "Tous les types d'assets",
-      "create_error": "Une erreur est survenue en créant l'asset. Êtes-vous sûr qu'il n'y a pas un asset avec un nom similaire ?",
+      "create_error": "Une erreur est survenue en enregistrant ce type d'asset. Êtes-vous sûr qu'il n'existe pas un type d'asset avec un nom similaire ?",
       "delete_text": "Êtes-vous sûr de vouloir enlever {name} de la base de données ?",
       "delete_error": "Une erreur s'est produite lors de la suppression de ce type d'asset. Il se peut que des données existantes soient actuellement liées à ce type d'asset. Êtes-vous sûr que ce type d'asset n'est pas lié à un autre asset ?",
       "edit_title": "Modifier le type d'asset",
@@ -56,7 +56,7 @@
         "short_name": "Nom court",
         "description": "Description"
       },
-      "include_all": "Inclure tous les types d'asset",
+      "include_all": "Inclut tous les types de tâches d'asset",
       "add_asset_type_to_library": "Ajouter un type d'asset à la bibliothèque",
       "library_title": "Bibliothèque des types d'assets",
       "add_asset_type_placeholder": "+ Ajouter un type d'asset"
@@ -74,7 +74,7 @@
         "animate": "animé"
       },
       "remove": {
-        "confirm": "Enlever les assets de cet épisode",
+        "confirm": "Enlever l'asset de son épisode",
         "error": "Une erreur de serveur s'est produite lors de la suppression de l'asset. Veuillez réessayer. Si le problème persiste, veuillez contacter notre équipe d'assistance.",
         "text": "Si vous supprimez l'asset de cet épisode, cela va enlever les assets de tous les plans liés. Êtes-vous sûr de l'enlever ?"
       },
@@ -84,7 +84,7 @@
       "episode_casting": "Casting de l'épisode",
       "save_error": "Une erreur est survenue en sauvegardant le casting",
       "hide_library": "Cacher la bibliothèque",
-      "show_library": "Bibliothèque d'affichage"
+      "show_library": "Afficher la bibliothèque"
     },
     "comments": {
       "add_attachment": "Ajouter une pièce jointe",
@@ -132,8 +132,29 @@
       "pinned_revision": "Révision épinglée",
       "edited_by": "Édité par {name}",
       "add_attachment_to_reply": "Ajouter une pièce jointe à la réponse",
-      "add_frame_to_comment": "Ajouter le cadre actuel au commentaire",
-      "add_emoji": "Ajouter un emoji"
+      "add_frame_to_comment": "Ajouter l'image actuelle au commentaire",
+      "add_emoji": "Ajouter un emoji",
+      "for_client_badge": "Texte visible par le client",
+      "for_client_off": "Texte non visible par les clients. Cliquez pour rendre le texte visible par les clients",
+      "for_client_on": "Texte visible par les clients. Cliquez pour rendre le texte non visible par les clients",
+      "move_modal": {
+        "error": "Impossible de déplacer le commentaire. Veuillez contacter notre support.",
+        "intro": "Choisissez une tâche de la même entité vers laquelle déplacer ce commentaire. Des notifications seront envoyées sur la tâche de destination comme pour un nouveau commentaire.",
+        "no_target": "Aucune autre tâche n'est disponible sur cette entité.",
+        "target_label": "Tâche de destination",
+        "title": "Déplacer le commentaire vers une autre tâche"
+      },
+      "move_to_task": "Déplacer vers",
+      "title": "Commentaires",
+      "toggle_for_client": "Visibilité client",
+      "player": {
+        "play": "Lecture",
+        "pause": "Pause",
+        "mute": "Couper le son",
+        "unmute": "Rétablir le son",
+        "fullscreen": "Plein écran",
+        "download": "Télécharger"
+      }
     },
     "custom_actions": {
       "create_error": "Une erreur est survenue en sauvegardant cette action personnalisée. Êtes-vous sûr qu'aucune autre action a un nom similaire ?",
@@ -155,7 +176,7 @@
         "shot": "Plan",
         "asset": "Asset",
         "sequence": "Séquence",
-        "edit": "Edit",
+        "edit": "Montage",
         "episode": "Épisode"
       }
     },
@@ -183,7 +204,7 @@
         "department": "Département",
         "is_assets_ready": "Les assets sont prêts",
         "assets_ready": "Prêts",
-        "assets_not_ready": "Non prêt",
+        "assets_not_ready": "Non prêts",
         "checked": "Actif",
         "not_checked": "Non actif"
       },
@@ -205,7 +226,7 @@
         "invalid_files": "Fichiers non valides (ne correspondant pas au pattern)"
       },
       "logs": {
-        "no_logs": "Il n'y a pas de de temps passés pour cet entité."
+        "no_logs": "Il n'y a pas de temps passé pour cette entité."
       },
       "preview_files": {
         "extension": "Extension",
@@ -221,7 +242,7 @@
       },
       "nb_selected_assets": "{nbSelectedAssets} asset sélectionné | {nbSelectedAssets} assets sélectionnés",
       "nb_selected_shots": "{nbSelectedShots} plan sélectionné | {nbSelectedShots} plans sélectionnés",
-      "nb_selected_edits": "{nbSelectedEdits} edit sélectionné | {nbSelectedEdits} edits sélectionnés",
+      "nb_selected_edits": "{nbSelectedEdits} montage sélectionné | {nbSelectedEdits} montages sélectionnés",
       "output_files": {
         "extension": "Extension",
         "name": "Nom",
@@ -260,7 +281,7 @@
       "tasks": "Tâches Épisodes",
       "stats_title": "Statistiques Épisodes",
       "status": {
-        "canceled": "Annuler",
+        "canceled": "Annulé",
         "complete": "Terminé",
         "standby": "En attente",
         "running": "En cours"
@@ -275,9 +296,10 @@
       "altup": "Déplace la sélection d'une tâche vers le haut",
       "annotations": "Annotations",
       "draw": "Démarre le mode dessin",
+      "erase": "Démarre le mode gomme",
       "navigation": "Navigation",
-      "redo": "Redo",
-      "undo": "Undo",
+      "redo": "Rétablir",
+      "undo": "Annuler",
       "playlist_navigation": "Navigation dans une playlist",
       "remove_annotation": "Supprime l'annotation sélectionnée",
       "shortcuts": "Raccourcis claviers",
@@ -285,14 +307,32 @@
       "ctrlleft": "Déplacer la sélection de la colonne de métadonnées vers la gauche",
       "ctrlright": "Déplacer la sélection de la colonne de métadonnées vers la droite",
       "ctrlup": "Déplacer la sélection de la colonne de métadonnées vers le haut",
-      "plhome": "Aller au premier cadre",
+      "plhome": "Aller à la première image",
       "plend": "Aller à la dernière image",
-      "plaltright": "Aller à la première image de la prise de vue suivante",
-      "plaltleft": "Aller à la dernière image de la prise de vue précédente",
+      "plaltright": "Aller à la première image du plan suivant",
+      "plaltleft": "Aller à la dernière image du plan précédent",
       "object_viewer": "Visualisateur d'objets",
       "rotate_hdr": "Rotation de l'environnement",
       "change_fov": "Modification de la longueur focale",
-      "plalto": "Passer d'une opacité de 0 % à 100 % en mode comparaison"
+      "plalto": "Passer d'une opacité de 0 % à 100 % en mode comparaison",
+      "copy_annotation": "Copier l'annotation sélectionnée",
+      "move_entity_left": "Déplacer l'entité sélectionnée vers la gauche",
+      "move_entity_right": "Déplacer l'entité sélectionnée vers la droite",
+      "next_annotation": "Annotation suivante",
+      "next_frame": "Image suivante",
+      "pan_image": "Déplacer l'image",
+      "paste_annotation": "Coller l'annotation",
+      "play_pause": "Lecture / pause",
+      "play_pause_typing": "Lecture / pause (même en saisissant un commentaire)",
+      "player": "Lecteur",
+      "previous_annotation": "Annotation précédente",
+      "previous_frame": "Image précédente",
+      "scrub_anywhere": "Faire défiler la timeline depuis n'importe où dans le lecteur",
+      "focus_comment": "Basculer le focus entre le lecteur et la zone de commentaire",
+      "first_frame": "Aller à la première image",
+      "last_frame": "Aller à la dernière image",
+      "straight_line": "Tracer une ligne droite",
+      "constant_width": "Tracer avec une épaisseur constante (sans pression)"
     },
     "login": {
       "back_to_login": "Revenir à la page de connexion",
@@ -330,23 +370,25 @@
       "unable_to_verify_totp": "Impossible de vérifier TOTP ?",
       "unable_to_verify_email_otp": "Impossible de vérifier par email ?",
       "send_email_otp": "Renvoyer le code OTP par email",
-      "unable_to_verify_recovery_code": "Avez-vous un code de récupération ?",
-      "choose_totp": "Entrez le code d'authentification double facteur via OTP",
+      "unable_to_verify_recovery_code": "Vous n'avez pas de code de récupération ?",
+      "choose_totp": "Entrez le code d'authentification double facteur via TOTP",
       "choose_email_otp": "Entrez le code d'authentification double facteur via email",
       "choose_recovery_code": "Utilisez un code de récupération",
       "choose_fido": "Utiliser un appareil FIDO",
-      "error_requesting_fido": "Un erreur est survenue en demandant un challenge FIDO.",
+      "error_requesting_fido": "Une erreur est survenue en demandant un challenge FIDO.",
       "error_sending_email": "Une erreur est survenue en envoyant un code OTP via email.",
       "first_connection": "Lors de votre première connexion, vous devez définir un mot de passe. Pour ce faire, vous devez exécuter la procédure de réinitialisation du mot de passe.",
       "first_connection_2": "Veuillez indiquer l'adresse électronique utilisée pour votre compte Kitsu et nous vous enverrons le lien de réinitialisation du mot de passe.",
       "first_connection_title": "Bienvenue sur Kitsu !",
       "information_fido": "Branchez votre appareil FIDO sur votre ordinateur",
       "retry_fido_challenge": "Relancer le challenge FIDO",
-      "unable_to_verify_fido": "Est-ce que vous avez un appareil FIDO ?",
+      "unable_to_verify_fido": "Vous n'avez pas votre appareil FIDO ?",
       "wrong_fido_challenge": "La vérification du challenge FIDO a échoué.",
       "login_server_failed": "Une erreur de serveur s'est produite lors de la connexion.",
       "login_with_saml": "Connexion SSO avec {saml_idp_name}",
-      "login_saml": "Connexion SSO",
+      "saml": "Connexion SSO",
+      "login_with_oidc": "Connexion SSO avec {oidc_idp_name}",
+      "oidc": "Connexion SSO",
       "reset_password_inactive": "La réinitialisation de votre mot de passe a échoué. L'utilisateur ayant cet email est inactif.",
       "set_password_title": "Bienvenue sur Kitsu !",
       "set_password": "Définissez votre mot de passe",
@@ -366,13 +408,15 @@
       "date": "Date",
       "dark_theme": "Thème sombre",
       "days_spent": "jour passé | jours passés",
-      "days_estimated": "jour estimés | jours estimés",
+      "days_estimated": "jour estimé | jours estimés",
       "delete": "Supprimer",
       "delete_all": "Supprimer tout",
       "delete_text": "Êtes-vous sûr de vouloir supprimer {name} de la base de données ?",
+      "disable_desktop_notifications": "Désactiver les notifications de bureau",
       "documentation": "Documentation",
       "edit": "Modifier",
       "empty_comment": "Commentaire vide",
+      "enable_desktop_notifications": "Activer les notifications de bureau",
       "end_date": "Date de fin",
       "files_selected": "Fichiers sélectionnés",
       "for": "Pour",
@@ -412,7 +456,7 @@
         "legend": "Légende",
         "legend_ok": "Colonnes à importer",
         "legend_ignored": "Colonne non reconnue qui ne sera pas importée",
-        "legend_missing": "Colonnes attendue mais non trouvée",
+        "legend_missing": "Colonnes attendues mais non trouvées",
         "legend_disabled": "Ligne qui ne sera pas mise à jour ou créée",
         "legend_overwrite": "Ligne qui sera mise à jour",
         "paste": "Coller",
@@ -462,7 +506,8 @@
       "stick": "Coller",
       "timeSpent": "Temps passé",
       "unstick": "Décoller",
-      "all_edits": "Tous les edits",
+      "unknown": "Inconnu",
+      "all_edits": "Tous les montages",
       "attach_snapshots": "Attacher les snapshots de vos annotations",
       "reply": "Répondre",
       "select_file": "Sélectionner un fichier",
@@ -477,7 +522,7 @@
       "hide_support_chat": "Cacher le support",
       "move_action_bar": "Déplacer le panneau d'actions",
       "show_support_chat": "Montrer le support",
-      "empty_schedule": "Il n'y a pas de tâches où elles n'ont pas de dates de début.",
+      "empty_schedule": "Il n'y a pas de tâches ou elles n'ont pas de dates de début.",
       "all_shots": "Tous les plans",
       "department": "Département",
       "remaining": "Restant",
@@ -487,11 +532,11 @@
         "import_title": "Import de frames / in / out depuis l'EDL",
         "select_file": "Veuillez sélectionner un fichier dans l'un de vos dossiers :",
         "upload_file": "Parcourir les fichiers locaux",
-        "error_upload": "Un erreur est survenue en téléversant l'EDL",
+        "error_upload": "Une erreur est survenue en téléversant l'EDL",
         "upload_edl": "Téléverser l'EDL",
         "naming_convention": "Convention de nommage",
         "match_case": "Respecter la casse",
-        "explanation": "Il est possible d'importer des fichiers OpenTimeLineIO courants (otio, fcp_xml, fcpx_xml, edl). Les prises de vue seront créées ou mises à jour avec la plage d'images donnée, l'image d'entrée et l'image de sortie. L'image d'entrée commence à 0."
+        "explanation": "Il est possible d'importer des fichiers OpenTimeLineIO courants (otio, fcp_xml, fcpx_xml, edl). Les plans seront créés ou mis à jour avec la plage d'images donnée, l'image d'entrée et l'image de sortie. L'image d'entrée commence à 0."
       },
       "active": "Actif",
       "activity": "Activité",
@@ -553,7 +598,27 @@
       "shared_by": "Partagé par {name}",
       "continue": "Continuer",
       "developer_documentation": "Documentation pour développeurs",
-      "feedback": "Feuille de route / Suggestions"
+      "feedback": "Feuille de route / Suggestions",
+      "annotations": {
+        "download_pdf": "Télécharger les annotations en PDF",
+        "download_zip": "Télécharger les annotations en ZIP"
+      },
+      "attach_snapshots_with_label": "Joindre les captures avec une étiquette incrustée",
+      "export": "Exporter",
+      "record_audio": "Enregistrer un audio",
+      "record_video": "Enregistrer une vidéo",
+      "recording": {
+        "webcam": "Webcam",
+        "screen": "Écran",
+        "microphone": "Microphone",
+        "start": "Démarrer",
+        "stop": "Arrêter",
+        "cancel": "Annuler",
+        "recording": "Enregistrement…",
+        "permission_denied": "Autorisation refusée. Autorisez l'accès au micro/à la caméra et réessayez.",
+        "no_device": "Aucun microphone ni caméra détecté.",
+        "not_supported": "L'enregistrement n'est pas pris en charge par ce navigateur."
+      }
     },
     "menu": {
       "assign_tasks": "Assigner des tâches",
@@ -565,7 +630,7 @@
       "set_estimations": "Définir estimations",
       "delete_assets": "Supprimer les assets",
       "delete_shots": "Supprimer les plans",
-      "delete_edits": "Supprimer les edits",
+      "delete_edits": "Supprimer les montages",
       "generate_playlist": "Générer une playlist",
       "set_thumbnails": "Positionner les vignettes du dernier preview",
       "subscribe": "S'inscrire aux notifications",
@@ -577,6 +642,7 @@
       "commented_on": "a commenté sur",
       "infos": "Info",
       "no_news": "Il n'y a pas d'actualités.",
+      "no_news_hint": "Essayez d'élargir les filtres ou revenez plus tard.",
       "only_comments": "Seulement les commentaires",
       "only_previews": "Seulement les previews",
       "set_preview_on": "a mis un preview sur",
@@ -592,6 +658,20 @@
       "title": "Page non trouvée..."
     },
     "notifications": {
+      "desktop": {
+        "assignation_title": "{name} vous a assigné",
+        "banner_blocked_text": "Les notifications de bureau sont bloquées. Autorisez-les dans les paramètres du site de votre navigateur pour les activer.",
+        "banner_dismiss": "Plus tard",
+        "banner_enable": "Activer",
+        "banner_text": "Recevez une notification de bureau à chaque nouvel événement.",
+        "comment_title": "{name} a commenté",
+        "mention_title": "{name} vous a mentionné",
+        "playlist_ready_title": "Playlist {name} prête",
+        "publish_title": "{name} a publié un aperçu",
+        "reply_title": "{name} a répondu",
+        "test_notification_title": "Notifications Kitsu activées",
+        "test_notification_body": "Vous recevrez désormais des notifications comme celle-ci pour les nouveaux événements."
+      },
       "and_change_status": " et a modifié le statut de la tâche",
       "assigned_you": "vous a assigné cette tâche",
       "commented_on": "commenté",
@@ -612,20 +692,21 @@
       "assignation": "Assignation",
       "comment": "Commentaire",
       "initial_comment": "Commentaire initial",
-      "mark_all_as_read": "Marquer tous les textes comme lus",
+      "mark_all_as_read": "Tout marquer comme lu",
       "mention": "Mention",
-      "only_non_watching": "Seulement la non-observation",
-      "only_read": "Lire seulement",
+      "only_non_watching": "Uniquement les non suivis",
+      "only_read": "Lues seulement",
       "only_unread": "Uniquement non lu",
-      "only_watching": "Ne faire que regarder",
-      "read": "lire",
+      "only_watching": "Uniquement les suivis",
+      "read": "lu",
+      "to_status": "à",
       "reply": "Répondre",
       "publish": "Publier",
       "published": "a publié un aperçu",
       "show_comments": "Afficher les commentaires",
       "watching": "l'observation",
       "only_playlists_ready": "Uniquement les playlists prêtes",
-      "playlist_is_ready": "La plalylist est prête",
+      "playlist_is_ready": "La playlist est prête",
       "playlist_ready_text": "Une nouvelle playlist est prête à être consultée :"
     },
     "people": {
@@ -640,7 +721,10 @@
       "empty_team": "Personne n'a été affecté à cette production.",
       "invite": "Envoyer une invitation",
       "invite_error": "Une erreur est survenue en envoyant l'invitation.",
-      "invite_success": "L'invitation a été envoyé avec succès.",
+      "invite_success": "L'invitation a été envoyée avec succès.",
+      "copy_invite_link": "Copier le lien d'invitation",
+      "invite_link_copied": "Lien d'invitation copié dans le presse-papiers !",
+      "invite_link_error": "Une erreur est survenue lors de la génération du lien d'invitation.",
       "new_person": "Ajouter un employé",
       "no_task_assigned": "Il n'y a aucune tâche assignée.",
       "persons": "utilisateurs",
@@ -655,6 +739,7 @@
         "email": "Adresse email",
         "phone": "Téléphone",
         "role": "Rôle",
+        "country": "Pays",
         "old_password": "Mot de passe actuel",
         "password": "Nouveau mot de passe",
         "password_2": "Répétez le nouveau mot de passe",
@@ -664,7 +749,8 @@
         "studio": "Studio",
         "daily_salary": "Taux journalier",
         "position": "Position",
-        "seniority": "Ancienneté"
+        "seniority": "Ancienneté",
+        "created_at": "Date de création"
       },
       "list": {
         "name": "Nom",
@@ -672,6 +758,7 @@
         "phone": "Téléphone",
         "role": "Rôle",
         "active": "Actif",
+        "country": "Pays",
         "departments": "Départements",
         "contract": "Contrat",
         "expiration": "Expiration",
@@ -694,13 +781,13 @@
       "create": "Créer utilisateur",
       "user_limit_error": "Vous avez atteint votre limite utilisateur. Contactez notre équipe pour augmenter votre plan.",
       "change_password_for": "Changer le mot de passe pour",
-      "change_password_error": "Un erreur est survenue en changeant de mot de passe. S'il vous plait vérifiez le nouveau mot de passe.",
+      "change_password_error": "Une erreur est survenue en changeant de mot de passe. S'il vous plait vérifiez le nouveau mot de passe.",
       "disable_2FA": "Désactivez l'authentification double facteur",
-      "disable_2FA_error": "Un erreur est survenue en désactivant l'authentification double facteur.",
+      "disable_2FA_error": "Une erreur est survenue en désactivant l'authentification double facteur.",
       "departments_empty": "Cet utilisateur n'est lié à aucun département.",
       "edit_avatar_error": "Une erreur s'est produite lors de la mise à jour de l'avatar de l'utilisateur.",
       "contract": {
-        "open-ended": "Ouvert à tous",
+        "open-ended": "Durée indéterminée",
         "fixed-term": "Durée déterminée",
         "short-term": "Court terme",
         "freelance": "Freelance",
@@ -721,7 +808,13 @@
         "mid": "Moyen",
         "senior": "Senior"
       },
-      "email_domain_error": "Ce domaine de messagerie n'est pas autorisé."
+      "email_domain_error": "Ce domaine de messagerie n'est pas autorisé.",
+      "archive_guest_confirm": "Archiver cet invité ? Ses commentaires sont conservés, mais il n'apparaîtra plus dans la liste des invités actifs.",
+      "archive_guest_error": "Impossible d'archiver cet invité. Veuillez réessayer.",
+      "archived_guests": "Invités archivés",
+      "guests": "invité | invités",
+      "restore_guest_error": "Impossible de restaurer cet invité. Veuillez réessayer.",
+      "seats_remaining": "aucun siège restant | {count} siège restant | {count} sièges restants"
     },
     "playlists": {
       "add_assets": "Ajouter des assets",
@@ -732,8 +825,8 @@
       "add_movie": "Ajouter un film entier",
       "apply_task_type_change": "Cette opération définit la dernière révision pour le type de tâche donné dans toutes les entités.",
       "available_build": "Builds disponibles",
-      "build_daily": "Valid. quotidienne",
-      "build_weekly": "Valid. hebdomadaire",
+      "build_daily": "En attente (daily)",
+      "build_weekly": "Tous en attente",
       "build_mp4": "Construire .mp4",
       "building": "En cours...",
       "client_playlist": "Playlist Client",
@@ -748,15 +841,15 @@
       "for_client": "Le client",
       "for_studio": "Pour le studio",
       "edit_title": "Modifier la playlist",
-      "last_creation": "Dernière créations",
-      "last_modification": "Dernière modifications",
+      "last_creation": "Dernières créations",
+      "last_modification": "Dernières modifications",
       "loading_error": "Une erreur serveur est apparue, les playlists ne peuvent pas être chargées.",
       "new_playlist": "Ajouter une playlist",
       "no_build": "Pas de build",
       "no_playlist": "Il n'y a actuellement aucune playlist pour ce projet ou cet épisode.",
       "no_preview": "Aucune préviz",
       "no_selection": "Sélectionnez une playlist sur la gauche.",
-      "no_sequence_for_episode": "Il n'y a pas de séquence pour cette épisode",
+      "no_sequence_for_episode": "Il n'y a pas de séquence pour cet épisode",
       "no_shot_for_production": "Il n'y pas de plan pour cette production",
       "select_shot": "Sélectionnez un plan dans la colonne de droite",
       "select_playlist": "Sélectionnez une playlist dans la colonne de gauche",
@@ -831,7 +924,12 @@
         "select_background": "Sélectionner un arrière-plan",
         "toggle_environment_skybox": "Afficher/masquer l'arrière-plan de la skybox",
         "toggle_wireframe": "Activer/désactiver le rendu de l'image filaire",
-        "open_link": "Ouvrir le lien"
+        "open_link": "Ouvrir le lien",
+        "annotation_huge": "Énorme",
+        "annotation_shape": "Forme",
+        "annotation_tiny": "Minuscule",
+        "onion_skin": "Pelure d'oignon",
+        "onion_skin_off": "Désactivée"
       },
       "download_csv": "Télécharger .csv",
       "filter_task_type": "Filtré par type de tâche",
@@ -845,7 +943,45 @@
       "no_clients_to_notify": "Il n'y a pas de clients à notifier.",
       "notify_clients_success": "La notification a été envoyée avec succès.",
       "unmute": "Rétablir le son",
-      "volume_level": "Volume : {level}%"
+      "volume_level": "Volume : {level}%",
+      "add_edits": "Ajouter des montages",
+      "add_episodes": "Ajouter des épisodes",
+      "share": "Partager",
+      "share_modal": {
+        "active_links": "Liens actifs",
+        "add_link": "Ajouter un nouveau lien",
+        "can_comment": "Autoriser les commentaires",
+        "comments_disabled": "Commentaires désactivés",
+        "comments_enabled": "Commentaires activés",
+        "copy": "Copier le lien",
+        "create_new": "Créer un nouveau lien",
+        "description": "Générez un lien pour partager cette playlist avec des relecteurs externes. Toute personne disposant du lien peut consulter la playlist et publier des commentaires sans compte Kitsu. Vous pouvez définir une date d'expiration et révoquer l'accès à tout moment.",
+        "error": "Une erreur est survenue lors de la création du lien de partage.",
+        "expiration": "Date d'expiration (optionnelle)",
+        "expires": "Expire le",
+        "generate": "Générer un nouveau lien",
+        "invite": "Inviter par email",
+        "invite_add_email": "Ajouter cet email",
+        "invite_error": "Une erreur est survenue lors de l'envoi des invitations.",
+        "invite_invalid_email": "Cette adresse email n'est pas valide.",
+        "invite_message_label": "Message personnalisé (optionnel)",
+        "invite_message_placeholder": "Une courte note qui sera ajoutée à l'email",
+        "invite_placeholder": "Saisissez un email et appuyez sur Entrée, ou choisissez un client",
+        "invite_recipients": "Destinataires",
+        "invite_send": "Envoyer les invitations",
+        "invite_sent": "{count} invitation envoyée | {count} invitations envoyées",
+        "no_expiration": "Pas d'expiration",
+        "no_links": "Aucun lien de partage pour le moment. Créez-en un ci-dessous pour donner accès à des relecteurs externes.",
+        "open": "Ouvrir le lien dans un nouvel onglet",
+        "revoke": "Révoquer le lien",
+        "revoke_confirm": "Révoquer ce lien ? Toute personne l'utilisant perdra l'accès.",
+        "title": "Partager la playlist"
+      },
+      "update_to_latest_version": "Mettre à jour vers la dernière version",
+      "update_to_latest_version_help": "Utilise la dernière révision de chaque entité, en conservant son type de tâche actuel.",
+      "update_versions_title": "Mettre à jour les versions sélectionnées",
+      "created": "Playlist « {name} » créée.",
+      "view_created": "Voir la playlist"
     },
     "productions": {
       "current": "Production sélectionnée ",
@@ -867,10 +1003,10 @@
       },
       "fields": {
         "fps": "FPS",
-        "name": "Name",
+        "name": "Nom",
         "ratio": "Ratio",
-        "resolution": "Resolution",
-        "status": "Status",
+        "resolution": "Résolution",
+        "status": "Statut",
         "type": "Type",
         "start_date": "Date de début",
         "end_date": "Date de fin",
@@ -883,24 +1019,29 @@
         "is_set_preview_automated": "Définir automatiquement la nouvelle prévisualisation comme vignette de l'entité",
         "homepage": "Page d'accueil (première page affichée)",
         "code": "Nom court",
-        "is_publish_default": "Définir le widget de commentaires pour les artistes en mode publication par défaut"
+        "is_publish_default": "Définir le widget de commentaires pour les artistes en mode publication par défaut",
+        "is_single_preview_per_revision": "N'autoriser qu'un seul fichier de preview par révision",
+        "revision_padding": "Remplissage du numéro de révision (0 = aucun)"
       },
       "metadata": {
-        "add_explaination": "Ajouter des données spécifiques au projet.",
+        "add_explanation": "Ajouter des données spécifiques au projet.",
         "add_failed": "Une erreur s'est produite en ajoutant des métadonnées au projet.",
         "add_new_values": "Il n'y a pour le moment aucune valeur enregistrée.",
         "available_values": "Valeurs disponibles",
         "choices": "Liste de valeurs",
         "delete_text": "Êtes-vous sûr de vouloir supprimer cette colonne et toutes les données liées ?",
-        "delete_error": "Une erreur est survenue en supprimant une colone de métadonnées.",
-        "error": "Une erreur est survenue en ajoutant la colone de métadonnées. Assurez-vous qu'aucune colonne ne porte le même nom et que les champs sont bien renseignés. Si le problème persiste, contactez notre support.",
+        "delete_list_column_text": "Cela retirera la colonne « {name} » de tous les projets, y compris les valeurs enregistrées. Continuer ?",
+        "delete_error": "Une erreur est survenue en supprimant une colonne de métadonnées.",
+        "error": "Une erreur est survenue en ajoutant la colonne de métadonnées. Assurez-vous qu'aucune colonne ne porte le même nom et que les champs sont bien renseignés. Si le problème persiste, contactez notre support.",
         "title": "Ajouter une colonne de métadonnées",
         "edit_title": "Éditer la colonne de métadonnées",
         "checklist": "Checklist",
         "boolean": "Choix vrai/faux",
         "number": "Nombre",
         "string": "Texte",
-        "tags": "Liste des étiquettes"
+        "tags": "Liste des étiquettes",
+        "applies_to_all_projects": "Cette colonne est ajoutée à tous les projets de la liste. Chaque projet peut avoir sa propre valeur dans la vue en liste.",
+        "target_project": "Projet"
       },
       "status": {
         "closed": "Fermé",
@@ -918,8 +1059,8 @@
       "edit_error": "Une erreur s'est produite lors de l'édition de la production. Veuillez contacter notre équipe d'assistance.",
       "brief": {
         "title": "Brief",
-        "empty": "Il n'y a pas encore de dossier. Pourquoi ne pas en créer un ?",
-        "edit_error": "Une erreur s'est produite lors de l'édition du mémoire."
+        "empty": "Il n'y a pas encore de brief. Pourquoi ne pas en créer un ?",
+        "edit_error": "Une erreur s'est produite lors de l'édition du brief."
       },
       "parameters": {
         "title": "Paramètres",
@@ -943,9 +1084,9 @@
         "error": "Une erreur est survenue en créant la production",
         "errorImportingAssets": "Une erreur est survenue en important les assets. La production a tout de même été créée.",
         "errorImportingShots": "Une erreur est survenue en important les plans. La production a tout de même été créée.",
-        "explaination_date": "Ces dates sont nécessaires pour mettre en place le planning",
-        "explaination_type": "En sélectionnant TV Show, la production sera divisée en épisodes.",
-        "explaination_video": "Ces paramètres sont utilisés pour normaliser les vidéos",
+        "explanation_date": "Ces dates sont nécessaires pour mettre en place le planning",
+        "explanation_type": "En sélectionnant TV Show, la production sera divisée en épisodes.",
+        "explanation_video": "Ces paramètres sont utilisés pour normaliser les vidéos",
         "give_a_name": "Donnez un nom à votre production",
         "give_a_name_description": "Commencez par donner un nom clair et explicite à votre production.",
         "import_assets_button": "Importer des assets",
@@ -963,14 +1104,17 @@
         "production_settings_description": "Définissez votre type de production, le format de vos vidéos et les dates de votre production.",
         "select_asset_task_type": "Sélectionner les types de tâches de l'asset",
         "select_asset_task_type_description": "Ces types de tâche définissent les étapes de fabrication de vos assets.",
-        "select_shot_task_type": "Sélectionner les types de tâches de tir",
+        "select_shot_task_type": "Sélectionner les types de tâches de plan",
         "select_shot_task_type_description": "Ces types de tâche définissent les étapes de fabrication de vos plans.",
         "select_task_status": "Sélectionner les statuts des tâches",
         "select_task_status_description": "Sélectionnez les statuts de tâches que vous utiliserez pendant la production.",
         "start_and_end_dates": "Date de début et de fin",
         "shots_to_import": "Plans à importer",
-        "select_edit_task_type": "Sélectionner les types de tâches pour les edits",
-        "select_edit_task_type_description": "Ces types de tâches décrivent les étapes nécessaires pour fabriquer votre edit"
+        "select_edit_task_type": "Sélectionner les types de tâches de montage",
+        "select_edit_task_type_description": "Ces types de tâches décrivent les étapes nécessaires pour fabriquer vos montages.",
+        "choose_template": "Appliquer un modèle de production (optionnel)",
+        "choose_template_description": "Choisissez un modèle pour pré-remplir les types de tâches, statuts de tâche, types d'assets, métadonnées et paramètres. Laissez vide pour tout configurer à partir de zéro.",
+        "no_template": "Aucun modèle"
       },
       "style": {
         "2d": "2D",
@@ -1000,6 +1144,7 @@
       "change_avatar": "Changer Avatar",
       "info_title": "Informations",
       "language": "Langue",
+      "notifications_title": "Notifications",
       "notifications_enabled": "Notifications email activées",
       "notifications_slack_enabled": "Notifications Slack activées",
       "notifications_slack_user": "ID member Slack",
@@ -1009,6 +1154,11 @@
       "avatar": {
         "title": "Changer votre avatar",
         "error_upload": "Une erreur est survenue en envoyant l'image.",
+        "intro": "Choisissez une photo, puis glissez et zoomez pour la cadrer.",
+        "drop_or_click": "Cliquez ou déposez une photo ici",
+        "preview": "Aperçu",
+        "preview_hint": "Glissez pour repositionner, utilisez le curseur pour zoomer.",
+        "replace": "Choisir une autre photo",
         "updating": "Mise à jour...",
         "removing": "Enlever..."
       },
@@ -1016,7 +1166,7 @@
         "button": "Changez de mot de passe",
         "error": "Une erreur s'est produite lors du changement de mot de passe. Veuillez vérifier votre mot de pass actuel.",
         "success": "Votre mot de passe a été changé avec succès !",
-        "unvalid": "Les nouveaux mots de passe sont différents ou votre mot de passe est trop court (7 caractères minimum)."
+        "unvalid": "Les nouveaux mots de passe sont différents ou votre mot de passe est trop court (8 caractères minimum)."
       },
       "save": {
         "button": "Sauvegardez vos changements",
@@ -1024,15 +1174,19 @@
       },
       "notifications_mattermost_enabled": "Activation des notifications Mattermost",
       "notifications_mattermost_user": "Nom de l'utilisateur Mattermost",
-      "webhook_error": "La webhook ne correspond pas à un webhook Mattermost",
+      "webhook_error": "Le webhook Mattermost ne correspond pas à un hook valide",
       "notifications_discord_enabled": "Activation des notifications DIscord",
       "notifications_discord_user": "Nom d'utilisateur Discord",
       "clear_avatar": "Effacer avatar",
       "two_factor_authentication": {
         "title": "Authentification double facteur",
+        "status_enabled": "Activée",
+        "status_disabled": "Désactivée",
         "scan_qrcode": "Scannez le code QR dans votre application TOTP.",
-        "otp_secret": "Secret OPT",
+        "otp_secret": "Secret OTP",
         "totp": {
+          "name": "Application d'authentification",
+          "description": "Utilisez une application TOTP comme Google Authenticator, Authy ou 1Password.",
           "button_enable": "Activer TOTP",
           "button_disable": "Désactiver TOTP",
           "button_validate_disable": "Valider et désactiver TOTP",
@@ -1041,11 +1195,13 @@
           "error_disable": "Une erreur est survenue en désactivant TOTP."
         },
         "email_otp": {
+          "name": "E-mail",
+          "description": "Recevez un code à usage unique par e-mail à chaque connexion.",
           "button_enable": "Activez l'authentification OTP par email",
           "button_disable": "Désactivez l'authentification OTP par email",
           "button_validate_disable": "Validez et désactivez l'authentification OTP par email",
           "button_validate": "Valider et activez l'authentification OTP par email",
-          "error_enable": "Un erreur est survenue en activant l'OTP par email.",
+          "error_enable": "Une erreur est survenue en activant l'OTP par email.",
           "error_disable": "Une erreur est survenue en désactivant l'OTP par email."
         },
         "recovery_codes": {
@@ -1056,6 +1212,8 @@
           "error_new": "Une erreur est survenue en générant les nouveaux codes de récupération."
         },
         "fido": {
+          "name": "Clé de sécurité",
+          "description": "Utilisez une clé matérielle (YubiKey) ou un authentificateur intégré (Touch ID, Windows Hello).",
           "device_name": "Nom de l'appareil FIDO",
           "registered_devices_title": "Appareils FIDO enregistrés",
           "button_register": "Enregistrer un nouvel appareil FIDO",
@@ -1072,6 +1230,7 @@
       "integrations": "Intégrations",
       "logo": "Logo du studio",
       "no_logo": "Aucun logo n' a été positionné.",
+      "preferences_title": "Préférences",
       "set_logo": "Changer le logo",
       "title": "Paramètres",
       "fields": {
@@ -1087,8 +1246,11 @@
         "dark_theme_by_default": "Utiliser un thème sombre par défaut"
       },
       "production": {
-        "empty_list": "La liste est vide. Cela signifie que tous les entrées sont disponibles aux utilisateurs. Ajouter des éléments à cette liste si vous voulez limiter les choix disponibles aux utilisateurs.",
-        "empty_automation_list": "Il n'a pas d'automatisations pour cette production"
+        "empty_list": "La liste est vide. Cela signifie que toutes les entrées sont disponibles aux utilisateurs. Ajouter des éléments à cette liste si vous voulez limiter les choix disponibles aux utilisateurs.",
+        "empty_automation_list": "Il n'a pas d'automatisations pour cette production",
+        "empty_backgrounds": "Aucun arrière-plan lié. Choisissez-en un dans la liste ci-dessus pour l'ajouter.",
+        "empty_board": "Ajoutez d'abord des statuts de tâche pour configurer leur visibilité sur le tableau.",
+        "empty_metadata": "Aucun descripteur de métadonnée défini pour ce type d'entité pour le moment."
       },
       "save": {
         "button": "Sauvegarder les paramètres",
@@ -1154,7 +1316,7 @@
       "add_task_type_placeholder": "+ Ajouter un type de tâche",
       "select_task_type": "Sélectionnez un type de tâche...",
       "add_task_type_to_library": "Ajouter un type de tâche à la bibliothèque",
-      "library_title": "Type de tâche Bibliothèque"
+      "library_title": "Bibliothèque de types de tâche"
     },
     "sequences": {
       "all_sequences": "Toutes les séquences",
@@ -1186,7 +1348,7 @@
       "milestone": {
         "add_milestone": "Ajouter milestone",
         "edit_milestone": "Modifier milestone",
-        "name": "Name",
+        "name": "Nom",
         "error": "Une erreur est survenue en ajoutant ou modifiant cette milestone. Contactez notre support pour que nous puissions étudier le problème.",
         "delete_milestone": "Supprimer un jalon"
       },
@@ -1259,10 +1421,10 @@
       "seconds": "Secondes",
       "weighted": "Pondéré (retour d'information)",
       "week": "Semaine",
-      "explanation_feedback": "Le plan est considéré comme terminé à la première demande de retour d'information. Son nombre de vues est ajouté aux quotas de la journée.",
+      "explanation_feedback": "Le plan est considéré comme terminé à la première demande de retour. Son nombre d'images est ajouté aux quotas de la journée.",
       "done_date": "Date d'approbation",
-      "explanation_done": "La prise de vue est considérée comme terminée lors de la dernière approbation. Son nombre d'images est ajouté aux quotas de la journée.",
-      "explanation_weighted": "Les prises de vue sont considérées comme achevées dès la première demande de retour d'information. Ensuite, les quotas sont pondérés en fonction du temps passé sur la tâche, tel qu'il est enregistré dans la feuille de temps de l'artiste.\n\n Si aucun temps n'est enregistré, il est supposé que :\n* la tâche a commencé au premier changement de statut (WIP).\n* La tâche a été achevée le jour où la demande de retour d'information a été faite.\n * Les cadres terminés sont répartis uniformément entre tous les jours ouvrables compris entre les dates de début et de fin.",
+      "explanation_done": "Le plan est considéré comme terminé lors de la dernière approbation. Son nombre d'images est ajouté aux quotas de la journée.",
+      "explanation_weighted": "Les plans sont considérés comme achevés dès la première demande de retour d'information. Ensuite, les quotas sont pondérés en fonction du temps passé sur la tâche, tel qu'il est enregistré dans la feuille de temps de l'artiste.\n\n Si aucun temps n'est enregistré, il est supposé que :\n* la tâche a commencé au premier changement de statut (WIP).\n* La tâche a été achevée le jour où la demande de retour d'information a été faite.\n * Les images terminées sont réparties uniformément entre tous les jours ouvrables compris entre les dates de début et de fin.",
       "explanation_weighteddone": "Les plans sont considérés comme terminés après la dernière approbation. Ensuite, les quotas sont pondérés en fonction du temps passé sur la tâche, tel qu'il est enregistré dans la feuille de temps de l'artiste.\n\n Si aucun temps n'est enregistré, il est supposé que :\n* la tâche a commencé au premier changement de statut vers WIP.\n* La tâche a été achevée le jour où elle a été approuvée.\n* Les frames terminées sont réparties uniformément entre tous les jours ouvrables compris entre les dates de début et de fin.",
       "weighted_done": "Pondéré (Approbation)",
       "drawings": "Dessins"
@@ -1270,12 +1432,12 @@
     "shots": {
       "casting": "Casting",
       "delete_text": "Êtes-vous sûr de vouloir retirer {name} de la base de données ?",
-      "delete_error": "Une erreur s'est produite lors de la suppression de ce plan. Il se peut que des données existantes soient actuellement liées à ce plan. Êtes-vous sûr que ce cliché n'est pas associé à une tâche ?",
+      "delete_error": "Une erreur s'est produite lors de la suppression de ce plan. Il se peut que des données existantes soient actuellement liées à ce plan. Êtes-vous sûr que ce plan n'est associé à aucune tâche ?",
       "edit_success": "Plan {name} édité avec succès.",
       "edit_fail": "La création ou la modification a échoué, une erreur s'est produite. Assurez-vous que vous ne renommez pas le plan avec un nom déjà répertorié pour une séquence donnée.",
       "edit_title": "Modifier plan",
       "empty_list": "Il n'y a pas de plans dans la production. Pourquoi ne pas en créer ?",
-      "empty_list_client": "Il n'y a pas de coups de feu dans cette production.",
+      "empty_list_client": "Il n'y a pas de plans dans cette production.",
       "episodes": "Épisodes",
       "history": "historique",
       "new_shot": "Ajouter un plan",
@@ -1286,8 +1448,8 @@
       "number": "plan | plans",
       "manage": "Créer des plans",
       "new_success": "Plan {name} créé avec succès.",
-      "padding": "Distance",
-      "restore_text": "Êtes-vous sûr de vouloir restorer {name} depuis les archives ?",
+      "padding": "Remplissage des plans",
+      "restore_text": "Êtes-vous sûr de vouloir restaurer {name} depuis les archives ?",
       "restore_error": "Une erreur est survenue en restaurant le plan.",
       "sequences": "Séquences",
       "tasks": "Tâches de fabrication",
@@ -1296,10 +1458,10 @@
         "description": "Description",
         "nb_frames": "Frames",
         "episode": "Épisode",
-        "frame_in": "Cadre d'entrée",
-        "frame_out": "Sortie de cadre",
+        "frame_in": "Image d'entrée",
+        "frame_out": "Image de sortie",
         "fps": "FPS",
-        "name": "Plan",
+        "name": "Nom",
         "production": "Prod",
         "sequence": "Séquence",
         "time_spent": "Temps passé",
@@ -1311,14 +1473,14 @@
       },
       "cancel_text": "Êtes-vous sûr de vouloir archiver {name} ?",
       "delete_for_selection": "Supprimer le plan sélectionné | Supprimer les {nbSelectedShots} plans sélectionnés",
-      "multiple_delete_error": "Une erreur s'est produite lors de la suppression d'un plan. Il se peut que des données existantes soient actuellement liées à la prise de vue. Êtes-vous sûr qu'aucune tâche n'est liée à un plan sélectionné ?",
+      "multiple_delete_error": "Une erreur s'est produite lors de la suppression d'un plan. Il se peut que des données existantes soient actuellement liées au plan. Êtes-vous sûr qu'aucune tâche n'est liée à un plan sélectionné ?",
       "creation_explanation": "Pour ajouter des plans, vous devez d'abord créer un épisode et une séquence. Tapez un nom d'épisode en bas de la colonne de gauche, puis cliquez sur \"Ajouter\" pour créer un nouvel épisode. Sélectionnez cet épisode et répétez la même opération pour la séquence. Enfin, sélectionnez une séquence et tapez un nom de plan dans le champ situé en bas de la colonne de droite. Cliquez sur le bouton \"Ajouter\" ci-dessous. Votre premier plan est maintenant créé. Vous pouvez en ajouter beaucoup d'autres ! S'il ne s'agit pas d'une série télé, vous pouvez directement créer une séquence.",
       "get_frames_from_previews": "Définir les durées en frames à partir des aperçus",
       "get_frames_from_previews_description": "Sélectionnez un type de tâche pour extraire les durées en frames des derniers aperçus de films publiés.",
       "get_frames_from_previews_error": "Une erreur s'est produite lors de l'extraction des numéros d'image des aperçus des types de tâches. Veuillez contacter notre équipe de support.",
-      "wrong_file_duration": "La durée d'un des fichiers vidéo téléchargés ne correspond pas à la durée prévue de la prise de vue actuelle.",
-      "delete_for_selection_hard_text": "Êtes-vous sûr de vouloir supprimer définitivement les photos sélectionnées ? Toutes les tâches, tous les commentaires et tous les aperçus associés seront également supprimés. Veuillez confirmer en tapant \"DELETE\" ci-dessous.",
-      "delete_for_selection_hard_lock_text": "DELETE",
+      "wrong_file_duration": "La durée d'un des fichiers vidéo téléchargés ne correspond pas à la durée prévue du plan actuel.",
+      "delete_for_selection_hard_text": "Êtes-vous sûr de vouloir supprimer définitivement les plans sélectionnés ? Toutes les tâches, tous les commentaires et tous les aperçus associés seront également supprimés. Veuillez confirmer en tapant \"SUPPRIMER\" ci-dessous.",
+      "delete_for_selection_hard_lock_text": "SUPPRIMER",
       "show_timecode": "Afficher les entrées et sorties sous forme de timecodes"
     },
     "server_down": {
@@ -1354,10 +1516,10 @@
       "create_for_selection": "Créer une tâche pour chaque cellule vide",
       "create_tasks": "Ajouter des tâches",
       "create_tasks_shot": "Ajouter des tâches pour les plans affichés",
-      "create_tasks_shot_explaination": "Vous êtes sur le point de créer une nouvelle tâche pour chaque plan du projet en cours pour le type de tâche donné. Voulez-vous continuer ?",
+      "create_tasks_shot_explanation": "Vous êtes sur le point de créer une nouvelle tâche pour chaque plan du projet en cours pour le type de tâche donné. Voulez-vous continuer ?",
       "create_tasks_shot_failed": "Une erreur serveur est survenue pendant la création des tâches.",
       "create_tasks_asset": "Ajouter des tâches pour les assets affichés",
-      "create_tasks_asset_explaination": "Vous êtes sur le point de créer une nouvelle tâche pour chaque asset du projet en cours pour le type de tâche donné. Voulez-vous continuer ?",
+      "create_tasks_asset_explanation": "Vous êtes sur le point de créer une nouvelle tâche pour chaque asset du projet en cours pour le type de tâche donné. Voulez-vous continuer ?",
       "create_tasks_asset_failed": "Une erreur serveur est survenue pendant la création des tâches.",
       "current": "Tâches",
       "current_status": "Statut actuel :",
@@ -1402,7 +1564,7 @@
         "assignees": "Assignés",
         "count": "Nombre",
         "due_date": "Pour le",
-        "duration": "Duration",
+        "duration": "Durée",
         "end_date": "Date de demande de validation",
         "entity": "Entité",
         "entity_name": "Nom",
@@ -1426,7 +1588,7 @@
         "parent": "Parent",
         "difficulty": "Difficulté",
         "done_date": "Date d'approbation",
-        "nb_frames": "Cadres",
+        "nb_frames": "Frames",
         "drawings": "Dessins",
         "before_after_tasks": "Tâches avant/après",
         "no_task_type": "Pas de type de tâche",
@@ -1437,7 +1599,7 @@
       "colors": {
         "title": "Coloration",
         "neutral": "Neutre",
-        "status": "Couleur des status",
+        "status": "Couleur des statuts",
         "late": "En retard en rouge"
       },
       "priority": {
@@ -1450,11 +1612,11 @@
       "for_selection": "Pour la liste et les filtres courants",
       "for_project": "Pour le projet",
       "all_tasks": "Toutes les tâches",
-      "due_this_week": "Dus cette semaine",
+      "due_this_week": "Tâches dues cette semaine",
       "select_file": "Veuillez sélectionner le fichier de votre disque dur que vous souhaitez joindre à votre commentaire ou message :",
       "big_thumbnails": "Afficher les vignettes en grand",
-      "create_tasks_edit": "Ajouter des tâches pour les edits courants",
-      "create_tasks_edit_explaination": "Vous êtes sur le point de créer une nouvelle tâche pour chaque edit du projet en cours pour le type de tâche donné. Voulez-vous continuer ?",
+      "create_tasks_edit": "Ajouter des tâches pour les montages courants",
+      "create_tasks_edit_explanation": "Vous êtes sur le point de créer une nouvelle tâche pour chaque montage du projet en cours pour le type de tâche donné. Voulez-vous continuer ?",
       "create_tasks_edit_failed": "Une erreur est survenue en créant les tâches.",
       "smaller": "Réduire le panneau",
       "small_thumbnails": "Afficher les vignettes en petit",
@@ -1468,7 +1630,7 @@
       "clear_own_assignations": "effacez vos assignations",
       "publish": "Publier",
       "all": "Toutes les tâches",
-      "assign_explaination": "Sélectionnez une personne à assigner...",
+      "assign_explanation": "Sélectionnez une personne à assigner...",
       "change_priority_to": "Nouvelle priorité :",
       "change_task_status": "Changer le statut de la tâche sélectionnée | Changer le statut des {nbSelectedTasks} tâches sélectionnées",
       "due_date": "État de la date de livraison",
@@ -1479,19 +1641,19 @@
       "due_previous_week": "Tâches dues la semaine précédente",
       "due_previous_month": "Tâches dues le mois précédent",
       "due_this_month": "Tâches dues ce mois-ci",
-      "estimation_over": "Durée sur l'estimation",
-      "estimation_approval_late": "Date de livraison est en retard (approbation)",
-      "estimation_done_late": "Date de livraison est en retard (done)",
+      "estimation_over": "Durée supérieure à l'estimation",
+      "estimation_approval_late": "La date de livraison est en retard (feedback)",
+      "estimation_done_late": "La date de livraison est en retard (terminé)",
       "late": "Est en retard",
       "nb_selected_tasks": "{nbSelectedTasks} tâche sélectionnée | {nbSelectedTasks} tâches sélectionnées",
       "set_thumbnails_from_tasks": "Positionner le dernier preview de la tâche sélectionnée comme vignette | Positionner le dernier preview des tâches sélectionnées comme vignette",
       "to_myself": "À moi-même",
       "create_tasks_episode": "Ajouter des tâches pour l'épisode courant",
-      "create_tasks_episode_explaination": "Vous êtes sur le point de créer une nouvelle tâche pour chaque épisode du projet en cours pour le type de tâche donné. Voulez-vous continuer ?",
+      "create_tasks_episode_explanation": "Vous êtes sur le point de créer une nouvelle tâche pour chaque épisode du projet en cours pour le type de tâche donné. Voulez-vous continuer ?",
       "create_tasks_episode_failed": "Une erreur serveur est survenue en procédant aux créations.",
       "clear_all_assignations": "tout désassigner",
       "create_tasks_sequence": "Ajouter des tâches pour les séquences courantes",
-      "create_tasks_sequence_explaination": "Vous êtes sur le point de créer une nouvelle tâche pour chaque séquence du projet en cours pour le type de tâche donné. Voulez-vous continuer ?",
+      "create_tasks_sequence_explanation": "Vous êtes sur le point de créer une nouvelle tâche pour chaque séquence du projet en cours pour le type de tâche donné. Voulez-vous continuer ?",
       "create_tasks_sequence_failed": "Une erreur serveur est survenue en procédant aux créations.",
       "auto_revision": "Restaurer la révision automatiquement",
       "empty_cells_selected": "cellule vide sélectionnée | cellules vides sélectionnées",
@@ -1503,7 +1665,7 @@
       "selected_entities": "Sélectionner les entités",
       "selected_tasks": "Tâches sélectionnées",
       "show_contact_sheet": "Afficher comme une planche contact",
-      "subscribe_to_tasks": "S'inscrire pour ",
+      "subscribe_to_tasks": "S'inscrire aux notifications de la tâche sélectionnée | S'inscrire aux notifications des {nbSelectedTasks} tâches sélectionnées",
       "use_current_frame": "Utiliser la frame courante",
       "build_playlist": "Construire une liste de lecture à partir d'une liste",
       "calendar": "Calendrier",
@@ -1521,10 +1683,12 @@
       "create_tasks_disclaimer": "Si votre type de tâche est manquant, vérifiez qu'il figure dans la section Types de tâches des paramètres de production.",
       "data_display": "Affichage des données",
       "delete_for_selection_error": "Une erreur s'est produite lors de la suppression des tâches sélectionnées.",
-      "delete_for_selection_hard_text": "Êtes-vous sûr de vouloir supprimer définitivement les tâches sélectionnées ? Tous les commentaires et aperçus associés seront également supprimés. Veuillez confirmer en tapant \"DELETE\" ci-dessous.",
-      "delete_for_selection_hard_lock_text": "DELETE",
-      "hookup_playlist": "Créer une liste de lecture pour les rencontres",
-      "assignation_error": "Il y a eu un problème d'assignation de cette personne aux tâches sélectionnées. Toutes les tâches n'ont pas été assignées."
+      "delete_for_selection_hard_text": "Êtes-vous sûr de vouloir supprimer définitivement les tâches sélectionnées ? Tous les commentaires et aperçus associés seront également supprimés. Veuillez confirmer en tapant \"SUPPRIMER\" ci-dessous.",
+      "delete_for_selection_hard_lock_text": "SUPPRIMER",
+      "hookup_playlist": "Générer une playlist de raccords",
+      "assignation_error": "Il y a eu un problème d'assignation de cette personne aux tâches sélectionnées. Toutes les tâches n'ont pas été assignées.",
+      "retake_filter_none": "Sans reprise",
+      "retake_filter_with_retakes": "Avec reprises"
     },
     "timesheets": {
       "detail_level": "Niveau de détail",
@@ -1537,11 +1701,12 @@
       "year": "Année",
       "confirm_day_off": "Le fait de définir ce jour comme un jour de congé effacera tout le temps enregistré pour le jour en cours. Êtes-vous sûr de vouloir continuer ?",
       "day_off": "Jour Off",
+      "day_off_no_logging": "Pas de saisie de temps sur un jour off",
       "export_timespents": "Exporter les temps passés pour les projets ouverts",
       "unit": "Unité",
       "confirm_day_offs": "Le fait de définir ces jours comme des jours de congé effacera toutes les heures enregistrées pour les jours concernés. Êtes-vous sûr de vouloir continuer ?",
       "confirm_unset_day_offs": "Les jours de congé sont actuellement appliqués de {start} à {end}. Êtes-vous sûr de vouloir supprimer cette période ?",
-      "off": "Arrêt"
+      "off": "Congé"
     },
     "wrong_browser": {
       "title": "Votre navigateur n'est pas supporté par Kitsu",
@@ -1561,10 +1726,21 @@
         "production": "Production",
         "revision": "Révision",
         "status": "Statut",
+        "statuses": {
+          "broken": "Échec du traitement serveur",
+          "missing": "Échec de l'envoi du fichier",
+          "processing": "Traitement serveur en cours"
+        },
         "task_type_id": "Type de tâche",
         "title": "Previews",
         "mark_broken": "Marquer comme cassé",
         "explanation": "Cette page répertorie tous les fichiers de prévisualisation dans un état intermédiaire : en cours de traitement ou interrompus. Elle indique le nombre de fichiers de prévisualisation en cours de traitement ou les fichiers qui n'ont pas abouti."
+      },
+      "audit": {
+        "title": "Journaux d'activité"
+      },
+      "logins": {
+        "title": "Journaux de connexion"
       }
     },
     "departments": {
@@ -1591,41 +1767,41 @@
       "software_used_by_artists": "Logiciels utilisés par les artistes"
     },
     "edits": {
-      "all_edits": "Tous les edits",
-      "creation_explaination": "Envoyer un fichier d'edit pour en créer un nouveau edit",
-      "edit_error": "Une erreur est survenue en sauvegardant cet edit. Êtes-vous sûr qu'il n'y a aucun edit avec un nom similaire ?",
+      "all_edits": "Tous les montages",
+      "creation_explanation": "Envoyer un fichier de montage pour créer un nouveau montage",
+      "edit_error": "Une erreur est survenue en sauvegardant ce montage. Êtes-vous sûr qu'il n'y a aucun montage avec un nom similaire ?",
       "delete_text": "Êtes-vous sûr de vouloir supprimer {name} de la base de données ?",
-      "delete_error": "Une erreur s'est produite lors de la suppression de cet edit. Il se peut que des données existantes y soient actuellement liées.",
-      "delete_for_selection": "Supprimer l'edit sélectionné | Supprimer les {nbSelectedEdits} edits sélectionnés",
-      "edit_title": "Modifier l'edit",
-      "empty_list": "Il n'y a pas d'edit dans la production. Pourquoi ne pas en créer ?",
-      "empty_list_client": "Vide",
-      "new_edit": "Nouveau edit",
-      "number": "edit | edits",
-      "title": "Edits",
+      "delete_error": "Une erreur s'est produite lors de la suppression de ce montage. Il se peut que des données existantes y soient actuellement liées.",
+      "delete_for_selection": "Supprimer le montage sélectionné | Supprimer les {nbSelectedEdits} montages sélectionnés",
+      "edit_title": "Modifier le montage",
+      "empty_list": "Il n'y a pas de montage dans la production. Pourquoi ne pas en créer ?",
+      "empty_list_client": "Il n'y a aucun montage dans cette production.",
+      "new_edit": "Nouveau montage",
+      "number": "montage | montages",
+      "title": "Montages",
       "fields": {
         "name": "Nom",
         "episode": "Épisode",
         "description": "Description",
         "person": "Modificateur"
       },
-      "tasks": "Tâche",
+      "tasks": "Tâches",
       "cancel_text": "Êtes-vous sûr que vous voulez archiver {name} ?",
-      "history": "Modifier l'historique des valeurs",
-      "restore_error": "Une erreur s'est produite lors de la restauration de cette édition.",
+      "history": "Historique des valeurs du montage",
+      "restore_error": "Une erreur s'est produite lors de la restauration de ce montage.",
       "edit_success": "Les modifications ont été enregistrées avec succès.",
       "restore_text": "Êtes-vous sûr de vouloir restaurer {name} à partir de votre archive ?",
-      "delete_for_selection_error": "Une erreur s'est produite lors de la suppression des edits sélectionnés.",
-      "delete_for_selection_hard_text": "Êtes-vous sûr de vouloir supprimer définitivement les edits sélectionnés ? Toutes les tâches, tous les commentaires et tous les aperçus associés seront également supprimés. Veuillez confirmer en tapant \"DELETE\" ci-dessous.",
-      "delete_for_selection_hard_lock_text": "DELETE",
-      "multiple_delete_error": "Une erreur s'est produite lors de la suppression d'un edit. Il se peut que des données existantes y soient actuellement liées. Êtes-vous sûr qu'il n'y a pas de tâches liées à l'edit sélectionné ?"
+      "delete_for_selection_error": "Une erreur s'est produite lors de la suppression des montages sélectionnés.",
+      "delete_for_selection_hard_text": "Êtes-vous sûr de vouloir supprimer définitivement les montages sélectionnés ? Toutes les tâches, tous les commentaires et tous les aperçus associés seront également supprimés. Veuillez confirmer en tapant \"SUPPRIMER\" ci-dessous.",
+      "delete_for_selection_hard_lock_text": "SUPPRIMER",
+      "multiple_delete_error": "Une erreur s'est produite lors de la suppression d'un montage. Il se peut que des données existantes y soient actuellement liées. Êtes-vous sûr qu'il n'y a pas de tâches liées au montage sélectionné ?"
     },
     "status_automations": {
       "change_ready_for": "Change \"Prêt pour\" pour ",
       "change_status": "Positionne le statut de tâche à",
       "create_error": "Une erreur s'est produite lors de l'enregistrement de cette automatisation. Etes-vous sûr qu'il n'existe pas d'autre automate portant le même nom ?",
       "delete_text": "Êtes-vous sûr d'enlever l'automatisation {name} de votre base de de données ?",
-      "delete_error": "Une erreur s'est produite lors de la suppression de cette automatisation. Il est possible qu'elle soit liée à un projet. Si c'est la cas, vous devez d'abord le supprimer de chaque projet.",
+      "delete_error": "Une erreur s'est produite lors de la suppression de cette automatisation. Il est possible qu'elle soit liée à un projet. Si c'est le cas, vous devez d'abord le supprimer de chaque projet.",
       "edit_title": "Modifier une automatisation",
       "entity_title": "Type d'entité concerné par le déclencheur",
       "number": "automatisation | automatisations",
@@ -1647,7 +1823,10 @@
       },
       "entity_types": {
         "asset": "Asset",
-        "shot": "Plan"
+        "shot": "Plan",
+        "sequence": "Séquence",
+        "episode": "Épisode",
+        "edit": "Montage"
       },
       "field_types": {
         "status": "Statut",
@@ -1666,7 +1845,7 @@
     },
     "search": {
       "limit": "Nombre maximum de résultats :",
-      "match_details": "Recherche trouvée dans {target}",
+      "match_details": "correspondance trouvée dans {target}",
       "placeholder": "Chercher une entité dans la base de données...",
       "title": "Recherche d'Entités"
     },
@@ -1675,7 +1854,7 @@
       "delete_text": "Êtes vous sûr de vouloir enlever {name} de la base de données ?",
       "delete_error": "Une erreur s'est produite lors de la suppression de cet arrière-plan. Il se peut que des données existantes soient actuellement liées à cet arrière-plan. Êtes-vous sûr que cet arrière-plan n'est pas associé à une tâche ?",
       "name": "arrière-plan",
-      "number": "arrière-plan | arrière-plan",
+      "number": "arrière-plan | arrière-plans",
       "edit_background": "Modifier l'arrière-plan",
       "new_background": "Ajouter un nouvel arrière-plan",
       "title": "Arrière-plans en 3D",
@@ -1743,19 +1922,19 @@
         "created_at": "Date de création",
         "updated_at": "Date de mise à jour",
         "last_comment_date": "Dernier commentaire",
-        "publisher": "Publier par"
+        "publisher": "Publié par"
       },
       "actions": {
         "title": "Liens vers les concepts",
         "empty": "Aucun lien"
       },
-      "delete_for_selection_hard_text": "Êtes-vous sûr de vouloir supprimer définitivement les concepts sélectionnés ? Toutes les tâches, commentaires et aperçus associés seront également supprimés. Veuillez confirmer en tapant \"DELETE\" ci-dessous.",
-      "delete_for_selection_hard_lock_text": "DELETE",
+      "delete_for_selection_hard_text": "Êtes-vous sûr de vouloir supprimer définitivement les concepts sélectionnés ? Toutes les tâches, commentaires et aperçus associés seront également supprimés. Veuillez confirmer en tapant \"SUPPRIMER\" ci-dessous.",
+      "delete_for_selection_hard_lock_text": "SUPPRIMER",
       "drop_new_concepts": "Déposez ici de nouveaux fichiers de concepts"
     },
     "intro": {
       "main": "Pour que notre projet prospère, nous avons besoin de votre soutien. Voici quelques moyens simples de nous aider :",
-      "first": "Démarrez notre dépôt sur ",
+      "first": "Ajoutez une étoile à notre dépôt sur ",
       "second": "Suivez-nous sur ",
       "third": "Rejoignez notre",
       "four": "Proposer de nouvelles fonctionnalités sur ",
@@ -1854,7 +2033,7 @@
       "new_hiring": "Nouvelle embauche",
       "new_version": "Nouvelle version",
       "no_budget_found": "Il n'y a pas de budget pour cette production. Voulez-vous en créer un ?",
-      "no_budget_entries_found": "Il n'y a pas de budget pour cette production. Voulez-vous en créer un ?",
+      "no_budget_entries_found": "Il n'y a pas d'entrée budgétaire pour cette production. Voulez-vous en créer une ?",
       "no_analytics_to_show": "Il n'y a pas d'analyse pour cette production. Créez un budget et ajoutez des entrées pour voir les analyses.",
       "remaining": "Restant",
       "previsional_costs": "Estimation",
@@ -1867,7 +2046,7 @@
         "base_salary": "Salaire",
         "currency": "Monnaie",
         "daily_salary": "Salaire journalier",
-        "duration": "La durée",
+        "duration": "Durée",
         "department": "Département",
         "months_duration": "Mois Durée",
         "name": "Nom",
@@ -1889,11 +2068,12 @@
         "junior": "Junior",
         "mid": "Mid",
         "senior": "Senior"
-      }
+      },
+      "clear_exception": "Effacer la modification de salaire de ce mois"
     },
     "hard_delete": {
-      "delete_for_selection_hard_text": "Êtes-vous sûr de vouloir supprimer définitivement les éléments sélectionnés ? Veuillez confirmer en tapant \"DELETE\" ci-dessous.",
-      "delete_for_selection_hard_lock_text": "DELETE"
+      "delete_for_selection_hard_text": "Êtes-vous sûr de vouloir supprimer définitivement les éléments sélectionnés ? Veuillez confirmer en tapant \"SUPPRIMER\" ci-dessous.",
+      "delete_for_selection_hard_lock_text": "SUPPRIMER"
     },
     "hardware_items": {
       "create_error": "Une erreur s'est produite lors de l'enregistrement de l'élément matériel.",
@@ -1934,9 +2114,66 @@
       "change_password": "Modifier le mot de passe",
       "delete": "Supprimer",
       "edit": "Editer",
-      "history": "L'histoire",
+      "history": "Historique",
       "refresh": "Rafraîchir",
-      "restore": "Restaurer"
+      "restore": "Restaurer",
+      "archive": "Archiver"
+    },
+    "project_templates": {
+      "add_metadata": "Ajouter une métadonnée",
+      "apply": "Appliquer le modèle",
+      "apply_confirm": "Cela ajoutera à cette production les types de tâches, statuts, types d'assets, automatisations et descripteurs de métadonnées du modèle. Les paramètres existants sont conservés. Continuer ?",
+      "apply_to": "Appliquer un modèle",
+      "apply_to_description": "Ajoute la configuration d'un modèle à cette production. Les paramètres existants sont conservés.",
+      "click_name_to_edit": "Cliquez sur le nom d'un modèle pour modifier sa configuration.",
+      "create_error": "Une erreur est survenue lors de l'enregistrement de ce modèle. Êtes-vous sûr qu'aucun modèle ne porte un nom similaire ?",
+      "delete_error": "Une erreur est survenue lors de la suppression de ce modèle.",
+      "delete_text": "Êtes-vous sûr de vouloir supprimer {name} de votre base de données ?",
+      "duplicate_name": "Un modèle de production portant ce nom existe déjà.",
+      "edit_title": "Modifier le modèle de production",
+      "empty": "Aucun modèle de production pour le moment. Créez-en un pour configurer rapidement de nouvelles productions.",
+      "fields": {
+        "description": "Description",
+        "entity_type": "Type d'entité",
+        "name": "Nom"
+      },
+      "fps_error": "Le FPS doit être un entier compris entre 1 et 200.",
+      "from_production": "Créer à partir d'une production",
+      "name_required": "Un nom est requis.",
+      "new_project_template": "Ajouter un modèle de production",
+      "number": "modèle de production | modèles de production",
+      "ratio_error": "Le ratio doit respecter le format x:y (ex. 16:9).",
+      "resolution_error": "La résolution doit respecter le format LxH (ex. 1920x1080).",
+      "select": "Sélectionner un modèle",
+      "tabs": {
+        "asset_types": "Types d'assets",
+        "metadata_descriptors": "Métadonnées",
+        "status_automations": "Automatisations de statut",
+        "task_statuses": "Statuts de tâche",
+        "task_types": "Types de tâches"
+      },
+      "title": "Modèles"
+    },
+    "share": {
+      "comment_placeholder": "Laissez un commentaire...",
+      "comments_disabled": "Les commentaires sont désactivés pour ce lien.",
+      "download_preview": "Télécharger le preview",
+      "enter_review": "Accéder à la review",
+      "error_text": "Ce lien partagé est invalide, expiré ou a été révoqué.",
+      "error_title": "Lien indisponible",
+      "guest_error": "Nous n'avons pas pu vous connecter. Vérifiez votre connexion et réessayez. Si le problème persiste, veuillez contacter le support.",
+      "identity_description": "Saisissez votre nom pour rejoindre la session de review. Vous pourrez consulter la playlist et laisser des commentaires.",
+      "identity_required": "Vous devez saisir votre nom avant de publier.",
+      "kitsu_homepage": "À propos de Kitsu",
+      "logout": "Quitter la session de review",
+      "name_placeholder": "Jean Dupont",
+      "no_comments_yet": "Aucun commentaire pour le moment.",
+      "no_preview": "Aucun preview",
+      "no_status_available": "Aucun statut de tâche n'est configuré pour ce projet.",
+      "player_placeholder": "Le lecteur s'affichera ici.",
+      "post_comment_error": "Impossible de publier le commentaire. Veuillez recharger la page et réessayer.",
+      "review_session": "Session de review",
+      "your_name": "Votre nom"
     }
   }
 }

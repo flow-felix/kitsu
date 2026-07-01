@@ -62,16 +62,16 @@
       </div>
 
       <div v-else-if="task">
-        <div class="flexrow extra-buttons pa05">
+        <div class="flexrow extra-buttons pa05 mr1">
           <div class="filler"></div>
-          <div
-            class="pointer"
-            :title="$t('main.csv.export_file')"
-            @click="onExportClick"
-            v-if="!withActions && !isCurrentUserClient"
-          >
-            <kitsu-icon name="export" :title="$t('main.csv.export_file')" />
-          </div>
+          <combobox-actions
+            class="flexrow-item export-combo"
+            align-right
+            thin
+            :title="$t('main.export')"
+            :actions="exportActions"
+            v-if="inPlaylist && exportActions.length > 0"
+          />
         </div>
 
         <div class="pa1 pb0 pt0">
@@ -141,6 +141,7 @@
                     :entity-preview-files="taskEntityPreviews"
                     :entity-type="entityType"
                     :extra-wide="isExtraWide"
+                    :fps="currentFps"
                     :is-assigned="isAssigned"
                     :last-preview-files="taskPreviews"
                     :light="!isWide"
@@ -187,12 +188,16 @@
                   :frame="currentFrame || currentFrameRaw"
                   :revision="currentRevision"
                   :is-movie="isMoviePreview"
+                  :is-picture="isPicturePreview"
                   @add-comment="addComment"
                   @add-preview="onAddPreviewClicked"
                   @file-drop="selectFile"
                   @clear-files="clearPreviewFiles"
                   @remove-preview="onPreviewFormRemoved"
                   @annotation-snapshots-requested="extractAnnotationSnapshots"
+                  @annotation-snapshots-with-label-requested="
+                    () => extractAnnotationSnapshots(true)
+                  "
                   v-if="isCommentingAllowed"
                 />
 
@@ -231,6 +236,7 @@
                         isCurrentUserManager ||
                         isClientFromSameStudio(comment.person)
                       "
+                      :can-move="isCurrentUserManager"
                       :revision="currentRevision"
                       :task="task"
                       :team="currentTeam"
@@ -240,6 +246,8 @@
                       @pin-comment="onPinComment"
                       @edit-comment="onEditComment"
                       @delete-comment="onDeleteComment"
+                      @move-comment="onMoveComment"
+                      @toggle-for-client="onToggleForClient"
                       @checklist-updated="saveComment"
                       @time-code-clicked="timeCodeClicked"
                       v-for="(comment, index) in taskComments"
@@ -306,6 +314,16 @@
           @cancel="onCancelDeleteComment"
         />
 
+        <move-comment-modal
+          :active="modals.moveComment"
+          :comment="commentToMove"
+          :source-task="task"
+          :is-loading="loading.moveComment"
+          :is-error="errors.moveComment"
+          @cancel="onCancelMoveComment"
+          @confirm="confirmMoveComment"
+        />
+
         <delete-modal
           :active="modals.deleteExtraPreview"
           :is-loading="loading.deleteExtraPreview"
@@ -362,6 +380,7 @@ import {
   getTaskPath
 } from '@/lib/path'
 import preferences from '@/lib/preferences'
+import { formatRevision } from '@/lib/preview'
 import { getTaskTypeStyle } from '@/lib/render'
 import { sortPeople, sortTaskNames } from '@/lib/sorting'
 import stringHelpers from '@/lib/string'
@@ -375,12 +394,13 @@ import ActionPanel from '@/components/tops/ActionPanel.vue'
 import AddComment from '@/components/widgets/AddComment.vue'
 import AddPreviewModal from '@/components/modals/AddPreviewModal.vue'
 import Comment from '@/components/widgets/Comment.vue'
+import ComboboxActions from '@/components/widgets/ComboboxActions.vue'
 import ComboboxStyled from '@/components/widgets/ComboboxStyled.vue'
 import DeleteModal from '@/components/modals/DeleteModal.vue'
 import EditCommentModal from '@/components/modals/EditCommentModal.vue'
-import KitsuIcon from '@/components/widgets/KitsuIcon.vue'
+import MoveCommentModal from '@/components/modals/MoveCommentModal.vue'
 import PeopleAvatar from '@/components/widgets/PeopleAvatar.vue'
-import PreviewPlayer from '@/components/previews/PreviewPlayer.vue'
+import PreviewPlayer from '@/components/players/players/PreviewPlayer.vue'
 import Spinner from '@/components/widgets/Spinner.vue'
 import TaskTypeName from '@/components/widgets/TaskTypeName.vue'
 
@@ -395,12 +415,13 @@ export default {
     ActionPanel,
     AddComment,
     AddPreviewModal,
+    ComboboxActions,
     ComboboxStyled,
     Comment,
     CornerRightUpIcon,
     DeleteModal,
     EditCommentModal,
-    KitsuIcon,
+    MoveCommentModal,
     PeopleAvatar,
     PreviewPlayer,
     Spinner,
@@ -424,6 +445,10 @@ export default {
     extendable: {
       type: Boolean,
       default: true
+    },
+    inPlaylist: {
+      type: Boolean,
+      default: false
     },
     isLoading: {
       type: Boolean,
@@ -482,6 +507,7 @@ export default {
       currentPreviewDlPath: '',
       currentTask: null,
       commentToEdit: null,
+      commentToMove: null,
       isWide: false,
       isExtraWide: false,
       otherPreviews: [],
@@ -505,6 +531,7 @@ export default {
         addExtraPreview: false,
         editComment: false,
         deleteComment: false,
+        moveComment: false,
         confirmDeleteTaskPreview: false,
         task: false
       },
@@ -514,6 +541,7 @@ export default {
         addExtraPreview: false,
         editComment: false,
         deleteComment: false,
+        moveComment: false,
         confirmDeleteTaskPreview: false,
         task: false,
         setFrameThumbnail: false
@@ -523,6 +551,7 @@ export default {
         addExtraPreview: false,
         editComment: false,
         deleteComment: false,
+        moveComment: false,
         deleteExtraPreview: false
       }
     }
@@ -744,8 +773,44 @@ export default {
       }
     },
 
-    currentFps() {
-      return parseInt(this.productionMap.get(this.task.project_id)?.fps) || 25
+    canDownloadAnnotations() {
+      return (
+        this.isCurrentUserManager &&
+        this.currentPreviewId &&
+        (this.currentPreview?.annotations?.length || 0) > 0
+      )
+    },
+
+    annotationsZipPath() {
+      return this.currentPreviewId
+        ? `/api/actions/preview-files/${this.currentPreviewId}/extract-annotated-frames`
+        : null
+    },
+
+    annotationsPdfPath() {
+      return this.currentPreviewId
+        ? `/api/actions/preview-files/${this.currentPreviewId}/extract-annotated-frames-pdf`
+        : null
+    },
+
+    exportActions() {
+      return [
+        {
+          label: 'annotations.zip',
+          href: this.annotationsZipPath,
+          visible: this.canDownloadAnnotations
+        },
+        {
+          label: 'annotations.pdf',
+          href: this.annotationsPdfPath,
+          visible: this.canDownloadAnnotations
+        },
+        {
+          label: 'comments.csv',
+          handler: () => this.onExportClick(),
+          visible: !this.withActions && !this.isCurrentUserClient
+        }
+      ].filter(action => action.visible !== false)
     },
 
     currentRevision() {
@@ -845,7 +910,7 @@ export default {
         .sort((a, b) => b.revision - a.revision)
         .map(preview => ({
           value: preview.id,
-          label: `v${preview.revision}`,
+          label: formatRevision(preview.revision, this.currentProduction),
           validation_status: preview.validation_status
         }))
     },
@@ -909,7 +974,8 @@ export default {
       checklist,
       taskStatusId,
       revision = undefined,
-      link = undefined
+      link = undefined,
+      forClient = false
     ) {
       this.animOn = true
       this.$nextTick(() => {
@@ -925,7 +991,8 @@ export default {
           checklist,
           comment,
           links: link ? [link] : null,
-          revision
+          revision,
+          forClient
         }
         const action =
           this.previewForms.length > 0
@@ -964,7 +1031,6 @@ export default {
         this.setOtherPreviews()
         this.currentPreviewPath = this.getOriginalPath()
         this.currentPreviewDlPath = this.getOriginalDlPath()
-        this.resetDraft()
         this.$nextTick(() => {
           this.$refs['preview-player']?.focus()
         })
@@ -1028,7 +1094,7 @@ export default {
           this.$refs['add-extra-preview-modal'].reset()
           this.reset()
           setTimeout(() => {
-            this.$refs['preview-player'].displayLast()
+            this.$refs['preview-player']?.displayLast()
           }, 0)
           this.modals.addExtraPreview = false
         })
@@ -1076,17 +1142,22 @@ export default {
       this.currentPreviewDlPath = this.getOriginalDlPath()
     },
 
-    onAnnotationChanged({ preview, additions, deletions, updates }) {
+    async onAnnotationChanged({ preview, additions, deletions, updates }) {
       let taskId = this.task ? this.task.id : this.previousTaskId
       taskId = taskId || preview.task_id
-      if (taskId) {
-        this.updatePreviewAnnotation({
+      if (!taskId) return
+      const previewPlayer = this.$refs['preview-player']
+      try {
+        await this.updatePreviewAnnotation({
           taskId,
           preview,
           additions,
           deletions,
           updates
         })
+        previewPlayer?.confirmAnnotationsSaved()
+      } catch {
+        previewPlayer?.restoreFailedAnnotations()
       }
     },
 
@@ -1167,6 +1238,10 @@ export default {
       this.pinComment(comment)
     },
 
+    onToggleForClient(comment) {
+      this.$store.dispatch('toggleCommentForClient', comment)
+    },
+
     onEditComment(comment) {
       this.commentToEdit = comment
       this.modals.editComment = true
@@ -1177,12 +1252,43 @@ export default {
       this.modals.deleteComment = true
     },
 
+    onMoveComment(comment) {
+      this.commentToMove = comment
+      this.errors.moveComment = false
+      this.modals.moveComment = true
+    },
+
     onCancelEditComment() {
       this.modals.editComment = false
     },
 
     onCancelDeleteComment() {
       this.modals.deleteComment = false
+    },
+
+    onCancelMoveComment() {
+      this.modals.moveComment = false
+    },
+
+    async confirmMoveComment(targetTaskId) {
+      this.animOn = true
+      this.loading.moveComment = true
+      this.errors.moveComment = false
+      try {
+        await this.$store.dispatch('moveCommentToTask', {
+          taskId: this.task.id,
+          commentId: this.commentToMove.id,
+          targetTaskId
+        })
+        this.taskComments = this.getTaskComments(this.task.id)
+        this.modals.moveComment = false
+        this.commentToMove = null
+      } catch (err) {
+        console.error(err)
+        this.errors.moveComment = true
+      } finally {
+        this.loading.moveComment = false
+      }
     },
 
     isClientFromSameStudio(person) {
@@ -1316,11 +1422,15 @@ export default {
       this.currentFrameRaw = frame
     },
 
-    async extractAnnotationSnapshots() {
+    async extractAnnotationSnapshots(withLabel = false) {
       let previewPlayer = this.$refs['preview-player']
       if (!previewPlayer) previewPlayer = this.player
-      this.$refs['add-comment'].showAnnotationLoading()
-      const files = await previewPlayer.extractAnnotationSnapshots()
+      this.$refs['add-comment'].showAnnotationLoading(
+        withLabel ? 'label' : 'standard'
+      )
+      const files = await previewPlayer.extractAnnotationSnapshots({
+        withLabel
+      })
       this.$refs['add-comment'].hideAnnotationLoading()
       this.$refs['add-comment'].setAnnotationSnapshots(files)
       return files
@@ -1359,7 +1469,7 @@ export default {
                   const checked = item.checked ? 'x' : ' '
                   const revision =
                     item.revision > -1
-                      ? `(v${item.revision} - ${formatFrame(item.frame)}) `
+                      ? `(${formatRevision(item.revision, this.currentProduction)} - ${formatFrame(item.frame)}) `
                       : ''
                   return `[${checked}] ${revision}${item.text}`
                 })
@@ -1628,8 +1738,14 @@ export default {
           }).then(() => {
             if (!previewPlayer.notSaved) {
               this.taskPreviews = this.getTaskPreviews(this.task.id)
-              previewPlayer.reloadAnnotations()
-              previewPlayer.loadAnnotation()
+              // Wait for the refreshed previews prop to propagate to the
+              // player before reloading — otherwise reloadAnnotations
+              // reads the stale currentPreview and the remote drawing
+              // never shows up outside a review room.
+              this.$nextTick(() => {
+                previewPlayer.reloadAnnotations()
+                previewPlayer.loadAnnotation()
+              })
             }
           })
         }
@@ -1863,5 +1979,13 @@ export default {
   img {
     width: 16px;
   }
+}
+
+.annotation-dl {
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.5em;
+  text-decoration: none;
 }
 </style>

@@ -3,8 +3,14 @@
     <div @click="$emit('pin-clicked')" v-if="isPinnable && !isEmpty">
       {{ isPinned ? $t('comments.unpin') : $t('comments.pin') }}
     </div>
+    <div @click="$emit('toggle-for-client-clicked')" v-if="canToggleForClient">
+      {{ $t('comments.toggle_for_client') }}
+    </div>
     <div @click="$emit('edit-clicked')" v-if="isEditable">
       {{ $t('main.edit') }}
+    </div>
+    <div @click="$emit('move-clicked')" v-if="canMove">
+      {{ $t('comments.move_to_task') }}
     </div>
     <div class="error" @click="$emit('delete-clicked')" v-if="isEditable">
       {{ $t('main.delete') }}
@@ -12,31 +18,45 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'comment-menu',
-
-  props: {
-    isEditable: {
-      type: Boolean,
-      default: true
-    },
-    isEmpty: {
-      type: Boolean,
-      default: false
-    },
-    isPinnable: {
-      type: Boolean,
-      default: true
-    },
-    isPinned: {
-      type: Boolean,
-      default: false
-    }
+<script setup>
+defineProps({
+  isEditable: {
+    type: Boolean,
+    default: true
   },
+  isEmpty: {
+    type: Boolean,
+    default: false
+  },
+  isPinnable: {
+    type: Boolean,
+    default: true
+  },
+  isPinned: {
+    type: Boolean,
+    default: false
+  },
+  canToggleForClient: {
+    type: Boolean,
+    default: false
+  },
+  canMove: {
+    type: Boolean,
+    default: false
+  },
+  isForClient: {
+    type: Boolean,
+    default: false
+  }
+})
 
-  emits: ['delete-clicked', 'edit-clicked', 'pin-clicked']
-}
+defineEmits([
+  'delete-clicked',
+  'edit-clicked',
+  'move-clicked',
+  'pin-clicked',
+  'toggle-for-client-clicked'
+])
 </script>
 
 <style lang="scss" scoped>

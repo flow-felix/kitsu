@@ -14,48 +14,40 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'checkbox',
+<script setup>
+import { ref, getCurrentInstance, onMounted } from 'vue'
 
-  props: {
-    disabled: {
-      default: false,
-      type: Boolean
-    },
-    label: {
-      default: '',
-      type: String,
-      required: true
-    },
-    modelValue: {
-      default: false,
-      type: Boolean
-    },
-    toggle: {
-      type: Boolean,
-      default: false
-    }
+defineProps({
+  disabled: {
+    default: false,
+    type: Boolean
   },
-
-  data() {
-    return {
-      id: null
-    }
+  label: {
+    default: '',
+    type: String,
+    required: true
   },
-
-  mounted() {
-    this.id = this.$.uid
+  modelValue: {
+    default: false,
+    type: Boolean
   },
-
-  emits: ['change', 'update:modelValue'],
-
-  methods: {
-    onChange(event) {
-      this.$emit('update:modelValue', event.target.checked)
-      this.$emit('change', event.target.checked)
-    }
+  toggle: {
+    type: Boolean,
+    default: false
   }
+})
+
+const emit = defineEmits(['change', 'update:model-value'])
+
+const id = ref(null)
+
+onMounted(() => {
+  id.value = getCurrentInstance().uid
+})
+
+const onChange = event => {
+  emit('update:model-value', event.target.checked)
+  emit('change', event.target.checked)
 }
 </script>
 
@@ -126,8 +118,9 @@ export default {
       transition: background-color 200ms ease-in;
     }
     &:after {
-      width: 1.3rem;
-      height: 1.3rem;
+      left: 0.15rem;
+      width: 1.2rem;
+      height: 1.2rem;
       background-color: $white;
       border-radius: 50%;
       transition: left 150ms ease-in;
@@ -139,7 +132,7 @@ export default {
     }
     &:after {
       content: '';
-      left: 1.3rem;
+      left: 1.25rem;
     }
   }
 }

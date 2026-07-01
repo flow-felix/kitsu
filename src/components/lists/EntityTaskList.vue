@@ -31,7 +31,12 @@
       </table>
     </div>
 
-    <table-info :is-loading="isLoading" :is-error="isError" />
+    <table-info
+      :is-loading="isLoading"
+      :is-error="isError"
+      :with-thumbnail="false"
+      :with-actions="false"
+    />
 
     <div
       class="task-list-body"
@@ -194,8 +199,8 @@ export default {
     entityProgress() {
       const doneTasks = this.entries.filter(task => {
         const fullTask = this.getTask(task.id)
-        const taskStatus = this.taskStatusMap.get(fullTask.task_status_id)
-        return taskStatus.is_done
+        const taskStatus = this.taskStatusMap.get(fullTask?.task_status_id)
+        return taskStatus?.is_done
       })
       return `${doneTasks.length} / ${this.entries.length}`
     },

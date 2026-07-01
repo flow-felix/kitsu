@@ -5,6 +5,7 @@ const ALL_EXTENSIONS = [
   'blend',
   'clip',
   'comp',
+  'diff',
   'exr',
   'fla',
   'flv',
@@ -18,6 +19,7 @@ const ALL_EXTENSIONS = [
   'm4v',
   'ma',
   'mb',
+  'md',
   'mkv',
   'mov',
   'mp3',
@@ -44,9 +46,24 @@ const ALL_EXTENSIONS_STRING = ALL_EXTENSIONS.map(e => `.${e}`).join(',')
 const IMG_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'svg']
 const IMG_EXTENSIONS_STRING = IMG_EXTENSIONS.map(e => `.${e}`).join(',')
 
+const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac']
+const VIDEO_EXTENSIONS = [
+  'mp4',
+  'mov',
+  'webm',
+  'm4v',
+  'avi',
+  'mkv',
+  'wmv',
+  'flv',
+  'ogv'
+]
+
 export default {
   ALL_EXTENSIONS,
   ALL_EXTENSIONS_STRING,
   IMG_EXTENSIONS,
-  IMG_EXTENSIONS_STRING
+  IMG_EXTENSIONS_STRING,
+  AUDIO_EXTENSIONS,
+  VIDEO_EXTENSIONS
 }

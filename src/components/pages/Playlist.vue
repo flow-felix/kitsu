@@ -184,7 +184,7 @@
         v-else-if="playlists.length === 0"
       >
         <div v-if="!loading.playlists && !loading.playlistsInit">
-          <p class="empty-explaination">
+          <p class="empty-explanation">
             {{ $t('playlists.no_playlist') }}
           </p>
           <button
@@ -210,11 +210,13 @@
           :entities="currentEntitiesList"
           :is-loading="loading.playlist"
           :is-adding-entity="isAddingEntity"
+          :initial-share-links-count="currentShareLinksCount"
           :current-entity-type="currentEntityType"
           @edit-clicked="showEditModal"
           @show-add-entities="toggleAddEntities"
           @preview-changed="onPreviewChanged"
           @task-type-changed="onTaskTypeChanged"
+          @update-to-latest-version="onUpdateToLatestVersion"
           @playlist-deleted="goFirstPlaylist"
           @remove-entity="removeEntity"
           @order-change="onOrderChange"
@@ -298,7 +300,13 @@
                 }"
                 :disabled="isAdditionLoading"
                 @click="addEpisodePending"
-                v-if="isTVShow && !isAssetPlaylist && !isSequencePlaylist"
+                v-if="
+                  isTVShow &&
+                  !isAssetPlaylist &&
+                  !isSequencePlaylist &&
+                  !isEditPlaylist &&
+                  !isEpisodePlaylist
+                "
               >
                 {{ $t('playlists.add_episode') }}
               </button>
@@ -310,7 +318,9 @@
                 }"
                 :disabled="isAdditionLoading"
                 @click="addMovie"
-                v-else-if="!isAssetPlaylist"
+                v-else-if="
+                  !isAssetPlaylist && !isEditPlaylist && !isEpisodePlaylist
+                "
               >
                 {{ $t('playlists.add_movie') }}
               </button>
@@ -328,7 +338,12 @@
           <spinner
             class="mt2"
             key="entity-loader"
-            v-if="isShotsLoading || isAssetsLoading"
+            v-if="
+              isShotsLoading ||
+              isAssetsLoading ||
+              isEditsLoading ||
+              isEpisodesLoading
+            "
           />
           <div ref="entityListContent" v-else>
             <div v-if="isAssetPlaylist">
@@ -406,6 +421,84 @@
                     <span class="playlisted-shot-name">{{
                       sequence.name
                     }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else-if="isEditPlaylist">
+              <div class="addition-entities">
+                <div
+                  :key="edit.id"
+                  :class="{
+                    'addition-shot': true,
+                    playlisted: currentEntitiesMap[edit.id] !== undefined
+                  }"
+                  draggable="true"
+                  @dragstart="onEntityDragStart($event, edit)"
+                  @click.prevent="addEntityToPlaylist(edit)"
+                  v-for="edit in displayedEdits.filter(e => !e.canceled)"
+                >
+                  <div
+                    class="entity-loading-spinner"
+                    v-if="entityLoading[edit.id]"
+                  >
+                    <spinner />
+                  </div>
+                  <light-entity-thumbnail
+                    :preview-file-id="edit.preview_file_id"
+                    width="150px"
+                    height="100px"
+                  />
+                  <div>
+                    <span
+                      :title="getTaskStatus(edit).name"
+                      :style="{
+                        color: getTaskStatus(edit).color
+                      }"
+                      v-if="currentPlaylist.task_type_id"
+                    >
+                      &bullet;
+                    </span>
+                    <span class="playlisted-shot-name">{{ edit.name }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else-if="isEpisodePlaylist">
+              <div class="addition-entities">
+                <div
+                  :key="episode.id"
+                  :class="{
+                    'addition-shot': true,
+                    playlisted: currentEntitiesMap[episode.id] !== undefined
+                  }"
+                  draggable="true"
+                  @dragstart="onEntityDragStart($event, episode)"
+                  @click.prevent="addEntityToPlaylist(episode)"
+                  v-for="episode in displayedEpisodes.filter(e => !e.canceled)"
+                >
+                  <div
+                    class="entity-loading-spinner"
+                    v-if="entityLoading[episode.id]"
+                  >
+                    <spinner />
+                  </div>
+                  <light-entity-thumbnail
+                    :preview-file-id="episode.preview_file_id"
+                    width="150px"
+                    height="100px"
+                  />
+                  <div>
+                    <span
+                      :title="getTaskStatus(episode).name"
+                      :style="{
+                        color: getTaskStatus(episode).color
+                      }"
+                      v-if="currentPlaylist.task_type_id"
+                    >
+                      &bullet;
+                    </span>
+                    <span class="playlisted-shot-name">{{ episode.name }}</span>
                   </div>
                 </div>
               </div>
@@ -502,6 +595,7 @@ import moment from 'moment-timezone'
 import { mapGetters, mapActions } from 'vuex'
 import { PlusIcon, XIcon } from 'lucide-vue-next'
 
+import playlistsApi from '@/store/api/playlists'
 import { DEFAULT_NB_FRAMES_PICTURE } from '@/lib/playlist'
 import { formatDate } from '@/lib/time'
 import { getPlaylistPath } from '@/lib/path'
@@ -509,6 +603,8 @@ import { updateModelFromList, removeModelFromList } from '@/lib/models'
 import { sortAssets, sortShots } from '@/lib/sorting'
 
 import assetStore from '@/store/modules/assets'
+import editStore from '@/store/modules/edits'
+import episodeStore from '@/store/modules/episodes'
 import shotStore from '@/store/modules/shots'
 import sequenceStore from '@/store/modules/sequences'
 
@@ -520,7 +616,7 @@ import EditPlaylistModal from '@/components/modals/EditPlaylistModal.vue'
 import ErrorText from '@/components/widgets/ErrorText.vue'
 import LightEntityThumbnail from '@/components/widgets/LightEntityThumbnail.vue'
 import PageSubtitle from '@/components/widgets/PageSubtitle.vue'
-import PlaylistPlayer from '@/components/pages/playlists/PlaylistPlayer.vue'
+import PlaylistPlayer from '@/components/players/players/PlaylistPlayer.vue'
 import SearchField from '@/components/widgets/SearchField.vue'
 import Spinner from '@/components/widgets/Spinner.vue'
 import TaskTypeName from '@/components/widgets/TaskTypeName.vue'
@@ -548,9 +644,11 @@ export default {
   data() {
     return {
       currentPlaylist: { name: '' },
+      currentShareLinksCount: 0,
       currentSort: 'updated_at',
       currentEntitiesMap: {},
       currentEntitiesList: [],
+      entitiesAddedWhilePanelOpen: false,
       entityLoading: {},
       isAddingEntity: false,
       isListToggled: false,
@@ -603,12 +701,16 @@ export default {
       'currentProduction',
       'displayedAssets',
       'displayedAssetsByType',
+      'displayedEdits',
+      'displayedEpisodes',
       'displayedSequences',
       'displayedShots',
       'displayedShotsBySequence',
       'isAssetsLoading',
       'isCurrentUserManager',
       'isCurrentUserSupervisor',
+      'isEditsLoading',
+      'isEpisodesLoading',
       'isShotsLoading',
       'isTVShow',
       'productionTaskTypes',
@@ -639,6 +741,14 @@ export default {
       return this.currentPlaylist.for_entity === 'sequence'
     },
 
+    isEditPlaylist() {
+      return this.currentPlaylist.for_entity === 'edit'
+    },
+
+    isEpisodePlaylist() {
+      return this.currentPlaylist.for_entity === 'episode'
+    },
+
     currentEntityType() {
       return this.currentPlaylist.for_entity
     },
@@ -663,6 +773,10 @@ export default {
         return this.$t('playlists.add_assets')
       } else if (this.isSequencePlaylist) {
         return this.$t('playlists.add_sequences')
+      } else if (this.isEditPlaylist) {
+        return this.$t('playlists.add_edits')
+      } else if (this.isEpisodePlaylist) {
+        return this.$t('playlists.add_episodes')
       } else {
         return this.$t('playlists.add_shots')
       }
@@ -711,6 +825,7 @@ export default {
       'changePlaylistOrder',
       'changePlaylistPreview',
       'changePlaylistType',
+      'updatePlaylistToLatestVersion',
       'displayMoreAssets',
       'displayMoreShots',
       'editPlaylist',
@@ -723,6 +838,7 @@ export default {
       'loadEntityPreviewFiles',
       'loadShots',
       'loadAssets',
+      'loadEdits',
       'newPlaylist',
       'refreshPlaylist',
       'removeEntityPreviewFromPlaylist',
@@ -753,6 +869,14 @@ export default {
 
     formatDate(dateString) {
       return formatDate(dateString)
+    },
+
+    isCurrentProjectEvent(eventData) {
+      return (
+        this.currentProduction?.id != null &&
+        eventData?.project_id != null &&
+        eventData.project_id === this.currentProduction.id
+      )
     },
 
     getPlaylistPath(playlistId, section) {
@@ -824,6 +948,38 @@ export default {
     async loadAssetsData() {
       if (this.isTVShow || this.displayedAssets.length === 0) {
         return this.loadAssets()
+      }
+    },
+
+    async loadEditsData() {
+      if (
+        this.displayedEdits.length === 0 ||
+        this.displayedEdits[0].project_id !== this.currentProduction.id
+      ) {
+        if (this.isTVShow && !this.currentEpisode) {
+          await this.loadEpisodes()
+        }
+        await this.loadEdits()
+      }
+    },
+
+    async loadEpisodesData() {
+      if (
+        this.isTVShow &&
+        (this.displayedEpisodes.length === 0 ||
+          this.displayedEpisodes[0].project_id !== this.currentProduction.id)
+      ) {
+        await this.loadEpisodes()
+      }
+    },
+
+    async loadShareLinksCount(playlistId) {
+      if (!this.isCurrentUserManager || !playlistId) return
+      try {
+        const links = await playlistsApi.getShareLinks(playlistId)
+        this.currentShareLinksCount = links.length
+      } catch {
+        this.currentShareLinksCount = 0
       }
     },
 
@@ -947,6 +1103,10 @@ export default {
         if (this.currentEpisode) {
           entity.episode_name = this.currentEpisode.name
         }
+      } else if (this.isEditPlaylist) {
+        entity = editStore.cache.editMap.get(entityInfo.id)
+      } else if (this.isEpisodePlaylist) {
+        entity = episodeStore.cache.episodeMap.get(entityInfo.id)
       } else {
         entity = shotStore.cache.shotMap.get(entityInfo.id)
       }
@@ -958,6 +1118,13 @@ export default {
             entity.sequence_name ||
             entity.episode_name ||
             entity.asset_type_name,
+          // Per-entity fps: an entity can override the production fps via
+          // data.fps. Carried here so the player uses the right rate for
+          // whichever entity is playing (a playlist can mix fps).
+          fps:
+            parseFloat(entity.data?.fps) ||
+            parseFloat(this.currentProduction?.fps) ||
+            25,
           preview_files: entityInfo.preview_files,
           preview_file_id: entityInfo.preview_file_id || entity.preview_file_id,
           preview_file_extension:
@@ -1007,6 +1174,7 @@ export default {
         this.currentPlaylist = ref(loadedPlaylist)
         this.rebuildCurrentEntities()
         this.loading.playlist = false
+        this.loadShareLinksCount(loadedPlaylist.id)
       } else {
         this.currentPlaylist = {
           name: ''
@@ -1044,7 +1212,7 @@ export default {
     },
 
     addToPlayerPlaylist(entity, playlist, scrollRight = true) {
-      if (playlist.id !== this.playlistPlayer.playlist.id) {
+      if (playlist.id !== this.currentPlaylist.id) {
         return
       }
       const playlistEntity = this.convertEntityToPlaylistFormat(entity)
@@ -1061,6 +1229,7 @@ export default {
 
     addEntityToPlaylist(entity) {
       this.setSilent()
+      this.entitiesAddedWhilePanelOpen = true
       const playlist = this.currentPlaylist
       this.addEntity(entity, playlist).then(() => {
         this.clearSilent()
@@ -1071,18 +1240,30 @@ export default {
     onNewEntityDropped(info) {
       let entity
       this.setSilent()
+      const entityId = info.after.entity_id
       if (this.isAssetPlaylist) {
-        entity = assetStore.cache.assetMap.get(info.after)
+        entity = assetStore.cache.assetMap.get(entityId)
       } else if (this.isSequencePlaylist) {
-        entity = sequenceStore.cache.sequenceMap.get(info.after)
+        entity = sequenceStore.cache.sequenceMap.get(entityId)
+      } else if (this.isEditPlaylist) {
+        entity = editStore.cache.editMap.get(entityId)
+      } else if (this.isEpisodePlaylist) {
+        entity = episodeStore.cache.episodeMap.get(entityId)
       } else {
-        entity = shotStore.cache.shotMap.get(info.after)
+        entity = shotStore.cache.shotMap.get(entityId)
       }
 
       if (entity && !this.currentEntitiesMap[entity.id]) {
         const notScrollRight = false
         const playlist = this.currentPlaylist
-        this.addEntity(entity, playlist, notScrollRight).then(() => {
+        this.addEntity(entity, playlist, notScrollRight).then(addedEntity => {
+          // The preview file id is only resolved when the entity is added, so
+          // the dragged payload can't carry it. Patch it in before replaying
+          // the drop so findEntity can locate the newly added entity and move
+          // it to the drop position instead of leaving it at the end.
+          if (addedEntity) {
+            info.after.preview_file_id = addedEntity.preview_file_id
+          }
           this.playlistPlayer.onEntityDropped(info)
           this.clearSilent()
         })
@@ -1122,9 +1303,16 @@ export default {
 
     addCurrentSelection() {
       this.setSilent()
-      const entities = this.isAssetPlaylist
-        ? this.displayedAssets
-        : this.displayedShots
+      let entities
+      if (this.isAssetPlaylist) {
+        entities = this.displayedAssets
+      } else if (this.isEditPlaylist) {
+        entities = this.displayedEdits
+      } else if (this.isEpisodePlaylist) {
+        entities = this.displayedEpisodes
+      } else {
+        entities = this.displayedShots
+      }
       this.addEntities([...entities].reverse(), () => {
         this.clearSilent()
       })
@@ -1200,6 +1388,7 @@ export default {
         playlist = this.currentPlaylist
       }
       if (entities && entities.length > 0) {
+        this.entitiesAddedWhilePanelOpen = true
         const entity = entities.pop()
         this.addEntity(entity, playlist).then(() => {
           this.addEntities(entities, callback, playlist)
@@ -1232,15 +1421,21 @@ export default {
       this.clearSilent()
     },
 
-    onAnnotationChanged({ preview, additions, deletions, updates }) {
+    async onAnnotationChanged({ preview, additions, deletions, updates }) {
       const taskId = preview.task_id
-      this.updatePreviewAnnotation({
-        taskId,
-        preview,
-        additions,
-        deletions,
-        updates
-      })
+      const playlistPlayer = this.$refs['playlist-player']
+      try {
+        await this.updatePreviewAnnotation({
+          taskId,
+          preview,
+          additions,
+          deletions,
+          updates
+        })
+        playlistPlayer?.confirmAnnotationsSaved()
+      } catch {
+        playlistPlayer?.restoreFailedAnnotations()
+      }
     },
 
     // Search
@@ -1368,7 +1563,10 @@ export default {
 
     toggleAddEntities() {
       if (this.isAddingEntity) {
-        this.resetPlaylist()
+        // Only rebuild the playlist when entities were actually added —
+        // closing an untouched panel otherwise reloads the whole player.
+        if (this.entitiesAddedWhilePanelOpen) this.resetPlaylist()
+        this.entitiesAddedWhilePanelOpen = false
       }
       this.isAddingEntity = !this.isAddingEntity
     },
@@ -1379,6 +1577,20 @@ export default {
         await this.changePlaylistType({
           playlist: this.currentPlaylist,
           taskTypeId
+        })
+        this.rebuildCurrentEntities()
+      } catch (err) {
+        console.error(err)
+      } finally {
+        this.clearSilent()
+      }
+    },
+
+    async onUpdateToLatestVersion() {
+      this.setSilent('onUpdateToLatestVersion')
+      try {
+        await this.updatePlaylistToLatestVersion({
+          playlist: this.currentPlaylist
         })
         this.rebuildCurrentEntities()
       } catch (err) {
@@ -1444,6 +1656,8 @@ export default {
         this.loading.playlists = true
         await this.loadShotsData()
         await this.loadAssetsData()
+        await this.loadEditsData()
+        await this.loadEpisodesData()
         this.page = 1
         await this.loadPlaylistsData()
         this.loading.playlists = false
@@ -1514,27 +1728,38 @@ export default {
   socket: {
     events: {
       'playlist:new'(eventData) {
+        if (!this.isCurrentProjectEvent(eventData)) {
+          return
+        }
         if (!this.playlistMap.get(eventData.playlist_id)) {
           this.refreshPlaylist(eventData.playlist_id)
         }
       },
 
       'playlist:update'(eventData) {
+        if (!this.isCurrentProjectEvent(eventData)) {
+          return
+        }
         if (
           this.playlistMap.get(eventData.playlist_id) &&
           !this.lockSystem.isSilent &&
           !this.isAddingEntity
         ) {
           this.refreshPlaylist(eventData.playlist_id).then(playlist => {
-            this.currentPlaylist = ref(playlist)
-            this.$nextTick(() => {
-              this.rebuildCurrentEntities()
-            })
+            if (eventData.playlist_id === this.currentPlaylist.id) {
+              this.currentPlaylist = ref(playlist)
+              this.$nextTick(() => {
+                this.rebuildCurrentEntities()
+              })
+            }
           })
         }
       },
 
       'playlist:delete'(eventData) {
+        if (!this.isCurrentProjectEvent(eventData)) {
+          return
+        }
         if (this.playlistMap.get(eventData.playlist_id)) {
           this.$store.commit('DELETE_PLAYLIST_END', {
             id: eventData.playlist_id
@@ -1543,6 +1768,9 @@ export default {
       },
 
       'build-job:new'(eventData) {
+        if (!this.isCurrentProjectEvent(eventData)) {
+          return
+        }
         if (eventData.playlist_id === this.currentPlaylist.id) {
           this.currentPlaylist.build_jobs = [
             {
@@ -1556,6 +1784,9 @@ export default {
       },
 
       'build-job:update'(eventData) {
+        if (!this.isCurrentProjectEvent(eventData)) {
+          return
+        }
         if (eventData.playlist_id === this.currentPlaylist.id) {
           updateModelFromList(this.currentPlaylist.build_jobs, {
             id: eventData.build_job_id,
@@ -1565,6 +1796,9 @@ export default {
       },
 
       'build-job:delete'(eventData) {
+        if (!this.isCurrentProjectEvent(eventData)) {
+          return
+        }
         if (eventData.playlist_id === this.currentPlaylist.id) {
           this.currentPlaylist.build_jobs = removeModelFromList(
             this.currentPlaylist.build_jobs,
@@ -1869,7 +2103,7 @@ h2 {
     }
   }
 
-  .empty-explaination {
+  .empty-explanation {
     color: $white;
     margin-top: 4em;
     font-size: 1.5em;

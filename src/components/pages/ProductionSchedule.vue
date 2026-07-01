@@ -713,9 +713,9 @@ export default {
 
     team() {
       return sortPeople(
-        this.currentProduction.team
+        this.currentProduction?.team
           .map(personId => this.personMap.get(personId))
-          .filter(person => person && !person.is_bot)
+          .filter(person => person && !person.is_bot) ?? []
       )
     },
 
@@ -2244,7 +2244,7 @@ export default {
         this.currentProduction.start_date !== start_date
       ) {
         this.editProduction({
-          ...this.currentProduction,
+          id: this.currentProduction.id,
           start_date
         })
       }
@@ -2258,7 +2258,7 @@ export default {
         this.currentProduction.end_date !== end_date
       ) {
         this.editProduction({
-          ...this.currentProduction,
+          id: this.currentProduction.id,
           end_date
         })
       }

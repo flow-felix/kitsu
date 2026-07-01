@@ -1,10 +1,15 @@
 import moment from 'moment-timezone'
+import { ref } from 'vue'
+
 import i18n from '@/lib/i18n'
 
 const LOCALE_MAP = {
-  zh_Hans_CN: { language: 'zh', localeCode: 'zh-cn' },
-  zh_Hant_TW: { language: 'zw', localeCode: 'zh-tw' }
+  zh_Hans_CN: { language: 'zh', code: 'zh-cn' },
+  zh_Hant_TW: { language: 'zh_tw', code: 'zh-tw' }
 }
+
+// Reactive, Intl-safe formatting code for the active language ('en', 'zh-tw', …).
+export const localeCode = ref('en')
 
 export default {
   /**
@@ -12,14 +17,15 @@ export default {
    * @param {string} locale
    */
   setLocale(locale) {
-    const { language, localeCode } = LOCALE_MAP[locale] || {
-      language: locale.substring(0, 2),
-      localeCode: locale.substring(0, 2)
+    const fallback = locale?.substring(0, 2) || 'en'
+    const { language, code } = LOCALE_MAP[locale] || {
+      language: fallback,
+      code: fallback
     }
 
-    moment.locale(localeCode)
+    moment.locale(code)
 
     i18n.global.locale = language
-    i18n.global.locale_code = localeCode
+    localeCode.value = code
   }
 }
