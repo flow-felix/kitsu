@@ -39,7 +39,12 @@ Each Flow change must be a discrete `flow/<feature>` branch so it can be reverte
   see hours logged on tasks they're no longer assigned to (`Todos.vue`,
   `TimesheetList.vue`, `en.js`). **Committed** on `flow/main` (branch
   `flow/timesheet-orphan-hours`, deployed 2026-05-27); survived the 1.0.48 upstream
-  merge on 2026-07-01. Risk: medium (edits upstream files).
+  merge on 2026-07-01 and the 1.0.55 merge on 2026-07-30. Risk: medium (edits
+  upstream files — upstream has touched all three in each of the last two syncs,
+  so re-verify the hunks after every merge).
+  - Note: upstream added its own `task.unassigned_tasks` locale key. Flow's key is
+    `timesheets.unassigned_tasks` — different namespace, no collision. Don't
+    "deduplicate" them.
 
 ## 5. Production paths (exact)
 | Thing | Path |
@@ -53,12 +58,17 @@ Each Flow change must be a discrete `flow/<feature>` branch so it can be reverte
 There is **no systemd unit** for the frontend — it is static files served by nginx. Restarting Zou does not affect it.
 
 ## 6. Build steps
-> **Node version:** Kitsu 1.0.48 requires **Node ≥ 22.22.1** (`package.json`
+> **Node version:** Kitsu 1.0.55 requires **Node ≥ 22.22.2** (`package.json`
 > `engines`; Vite 8 toolchain). The prod box's system `node` is **v20** — building
 > with it fails/produces a bad bundle. Use a Node 22 without touching the system:
 > download `node-v22.x-linux-x64` to a temp dir and prefix `PATH` for the build
 > only (`export PATH=/path/to/node-v22.../bin:$PATH`), or use nvm/fnm if installed.
-> The 2026-07-01 1.0.48 build used a throwaway Node v22.23.1 this way.
+> Both the 2026-07-01 (1.0.48) and 2026-07-30 (1.0.55) builds used a throwaway
+> Node v22.23.1 this way.
+>
+> **Unit tests:** `tests/unit/lib/time.spec.js` has an upstream test that hardcodes
+> a Europe/Paris assumption and fails on this box (TZ `America/New_York`). Run
+> `TZ=Europe/Paris npm run test:unit` to get a clean pass. Not a Flow regression.
 
 ```bash
 cd /home/felix-eyal/flow-dev/Kitsu-Mods/kitsu
