@@ -1,5 +1,13 @@
 <template>
-  <div class="project-stats" :class="{ expandable }" @click="expandStats">
+  <div
+    class="project-stats"
+    :class="{ expandable }"
+    :role="expandable ? 'button' : undefined"
+    :tabindex="expandable ? 0 : undefined"
+    @click="expandStats"
+    @keydown.enter.prevent="expandStats"
+    @keydown.space.prevent="expandStats"
+  >
     <div class="nb-tasks">
       <span class="tag">
         {{ stats.amount_done || 0 }} {{ $t('tasks.done') }}
@@ -38,11 +46,11 @@
       <div
         class="stat"
         :style="{
-          backgroundColor: taskStatusMap.get(statusId).color,
+          backgroundColor: taskStatusMap.get(statusId)?.color,
           width: `${(statsByStatus[statusId] / stats.amount) * 100}%`
         }"
         :key="statusId"
-        :title="`${taskStatusMap.get(statusId).name} - ${statsByStatus[statusId]} tasks`"
+        :title="`${taskStatusMap.get(statusId)?.name} - ${statsByStatus[statusId]} tasks`"
         v-for="statusId in statusIds"
       ></div>
     </div>
@@ -103,11 +111,11 @@
             class="stat"
             :style="{
               backgroundColor: taskStatusMap.get(statusStats.task_status_id)
-                .color,
+                ?.color,
               width: `${(statusStats.amount / taskTypeStatsMap[taskType.id].amount) * 100}%`
             }"
             :key="taskType.id + statusStats.task_status_id"
-            :title="`${taskStatusMap.get(statusStats.task_status_id).name} - ${statusStats.amount} tasks`"
+            :title="`${taskStatusMap.get(statusStats.task_status_id)?.name} - ${statusStats.amount} tasks`"
             v-for="statusStats in sortStatuses(
               taskTypeStatsMap[taskType.id].task_statuses
             )"
@@ -191,15 +199,19 @@ const statsByStatus = computed(() => {
 })
 
 const statusIds = computed(() =>
-  Object.keys(statsByStatus.value).sort(
-    (a, b) =>
-      taskStatusMap.value.get(a).priority < taskStatusMap.value.get(b).priority
-  )
+  Object.keys(statsByStatus.value)
+    .filter(statusId => taskStatusMap.value.has(statusId))
+    .sort(
+      (a, b) =>
+        taskStatusMap.value.get(a)?.priority <
+        taskStatusMap.value.get(b)?.priority
+    )
 )
 
 const taskTypes = computed(() =>
   Object.keys(taskTypeStatsMap.value)
     .map(taskTypeId => taskTypeMap.value.get(taskTypeId))
+    .filter(Boolean)
     .sort((a, b) => {
       if (a.for_entity !== b.for_entity) {
         return ENTITY_PRIORITY[a.for_entity] > ENTITY_PRIORITY[b.for_entity]
@@ -217,11 +229,13 @@ const expandStats = () => {
 }
 
 const sortStatuses = statuses =>
-  statuses.sort(
-    (a, b) =>
-      taskStatusMap.value.get(a.task_status_id).priority <
-      taskStatusMap.value.get(b.task_status_id).priority
-  )
+  statuses
+    .filter(status => taskStatusMap.value.has(status.task_status_id))
+    .sort(
+      (a, b) =>
+        taskStatusMap.value.get(a.task_status_id)?.priority <
+        taskStatusMap.value.get(b.task_status_id)?.priority
+    )
 </script>
 
 <style lang="scss" scoped>

@@ -40,7 +40,7 @@
         v-if="handleIn >= 0 && !isFullMode && !empty"
       >
         <span class="handle-frame" v-if="handleIn !== 0">
-          {{ handleIn + 1 }}
+          {{ handleIn + 1 + frameStartOffset }}
         </span>
       </span>
 
@@ -53,7 +53,7 @@
         v-if="handleOut >= 0 && !isFullMode && !empty"
       >
         <span class="handle-frame">
-          {{ handleOut + 1 }}
+          {{ handleOut + 1 + frameStartOffset }}
         </span>
       </span>
 
@@ -109,7 +109,7 @@
           isFrameNumberVisible && hoverFrame > 0 && !empty && !progressDragging
         "
       >
-        {{ hoverFrame }}
+        {{ hoverFrame + frameStartOffset }}
         <span
           class="frame-tile"
           :style="getFrameBackgroundStyle(hoverFrame)"
@@ -148,6 +148,10 @@ const props = defineProps({
   },
   frameDuration: {
     default: 0,
+    type: Number
+  },
+  frameStart: {
+    default: undefined,
     type: Number
   },
   handleIn: {
@@ -212,6 +216,12 @@ const getClientX = event =>
 
 const videoDuration = computed(() => props.nbFrames * props.frameDuration)
 
+// Display-only shift so the first frame reads as `frameStart` (e.g. a shot
+// with data.frame_in = 1001) instead of 1. Internal frame math is untouched.
+const frameStartOffset = computed(() =>
+  props.frameStart > 0 ? props.frameStart - 1 : 0
+)
+
 const backgroundSize = computed(() => {
   if (videoDuration.value) {
     return 200 / props.nbFrames + '% 100%'
@@ -222,24 +232,28 @@ const backgroundSize = computed(() => {
 
 // Alternating frame stripes generated at the exact frame size, using the
 // two colors sampled from the legacy player-timeslider.png — the
-// stretched texture blurred as soon as the clip had few frames. Stripes
-// are dropped when frames get too dense to read.
-// Below this per-frame width the alternating stripes are too dense to read
-// and just shimmer, so we drop them. The clip is then painted a solid dark
-// grey rather than exposing the light base background, which on long clips
-// looked like a rendering bug.
+// stretched texture blurred as soon as the clip had few frames.
+// Below this stripe width the alternating pattern is too dense to read and
+// just shimmers. Instead of dropping the stripes entirely on long clips
+// (which removed every landmark from the timeline — issue #2061), group
+// several frames per stripe so it never gets thinner than this.
+const MIN_STRIPE_WIDTH = 4
+
 const DENSE_FRAME_FALLBACK = 'linear-gradient(rgb(54, 57, 63), rgb(54, 57, 63))'
 
 const frameTicksGradient = computed(() => {
   const size = effectiveFrameSize.value
-  if (!size || size < 3) return DENSE_FRAME_FALLBACK
+  if (!size) return DENSE_FRAME_FALLBACK
+  const framesPerStripe = Math.max(1, Math.ceil(MIN_STRIPE_WIDTH / size))
+  const stripe = size * framesPerStripe
   // Anchor the stripe phase on the view window so frames keep their
   // shade while panning/zooming.
-  const phase = -(viewStartFrame.value % 2) * size
+  const phase = -(viewStartFrame.value % (2 * framesPerStripe)) * size
   return (
     `repeating-linear-gradient(to right, ` +
-    `rgb(54, 57, 63) ${phase}px, rgb(54, 57, 63) ${phase + size}px, ` +
-    `rgb(84, 89, 98) ${phase + size}px, rgb(84, 89, 98) ${phase + 2 * size}px)`
+    `rgb(54, 57, 63) ${phase}px, rgb(54, 57, 63) ${phase + stripe}px, ` +
+    `rgb(84, 89, 98) ${phase + stripe}px, ` +
+    `rgb(84, 89, 98) ${phase + 2 * stripe}px)`
   )
 })
 

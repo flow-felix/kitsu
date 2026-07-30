@@ -52,7 +52,10 @@
               'datatable-row': true,
               'datatable-row--selectable': true
             }"
+            role="button"
+            tabindex="0"
             @click="selectTask(task)"
+            @keydown.enter.prevent="selectTask(task)"
             v-for="task in sortedEntries"
           >
             <task-type-cell
@@ -112,7 +115,7 @@
             <td class="duedate">{{ entityDueDate }}</td>
             <td class="assignees">
               {{ entityAssignees.length }}
-              {{ $tc('people.persons', entityAssignees.length) }}
+              {{ $t('people.persons', entityAssignees.length) }}
             </td>
             <td class="end-cell"></td>
           </tr>
@@ -187,9 +190,11 @@ export default {
         const taskTypeAPriority = this.getTaskTypePriority(taskA.task_type_id)
         const taskTypeBPriority = this.getTaskTypePriority(taskB.task_type_id)
         if (taskTypeAPriority === taskTypeBPriority) {
-          return taskTypeA.name.localeCompare(taskTypeB.name, undefined, {
-            numeric: true
-          })
+          return (taskTypeA?.name || '').localeCompare(
+            taskTypeB?.name || '',
+            undefined,
+            { numeric: true }
+          )
         } else {
           return taskTypeAPriority - taskTypeBPriority
         }

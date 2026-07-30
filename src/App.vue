@@ -144,6 +144,9 @@ export default {
     },
 
     setupCrisp(config) {
+      // Never load Crisp on the guest share page: the widget reports the
+      // page URL, which contains the share token.
+      if (window.location.pathname.startsWith('/playlists/shared/')) return
       if (config.crisp_token?.length) {
         crisp.init(config.crisp_token)
         const supportChat = localPreferences.getBoolPreference(
@@ -168,6 +171,9 @@ export default {
       if (auth.getBroadcastChannel()) {
         auth.getBroadcastChannel().onmessage = event => {
           if (this.$route.name !== 'login' && event.data === 'logout') {
+            // Another tab logged out: purge this tab's session too,
+            // otherwise store and socket keep the previous user's data.
+            this.$store.dispatch('logoutLocal')
             this.$router.push({
               name: 'login',
               query: { redirect: this.$route.fullPath }
@@ -191,7 +197,7 @@ export default {
     currentProduction: {
       immediate: true,
       handler() {
-        const userLocale = this.user?.locale.substring(0, 2)
+        const userLocale = (this.user?.locale || 'en').substring(0, 2)
         const variant = this.currentProduction?.production_style
         if (userLocale !== 'en') {
           return
@@ -352,6 +358,16 @@ export default {
         if (this.assetMap.get(eventData.asset_id)) {
           this.$store.commit('REMOVE_ASSET', { id: eventData.asset_id })
         }
+      },
+
+      // Emitted by Zou when a production has "set preview automatically"
+      // enabled: reflect the new entity thumbnail without a manual refresh.
+      'preview-file:set-main'(eventData) {
+        this.$store.commit('SET_PREVIEW', {
+          entityId: eventData.entity_id,
+          previewId: eventData.preview_file_id,
+          taskMap: this.taskMap
+        })
       },
 
       'task:delete'(eventData) {
@@ -571,6 +587,12 @@ export default {
 <style lang="scss">
 :focus {
   outline: none;
+}
+// Keyboard navigation must stay visible even though mouse focus is
+// outline-free above.
+:focus-visible {
+  outline: 2px solid var(--text-selected);
+  outline-offset: 1px;
 }
 ::-moz-focus-inner {
   border: 0;
@@ -840,6 +862,7 @@ h2 {
 .avatar {
   border-radius: 50%;
   color: $white;
+  overflow: hidden;
 
   a,
   a:hover {
@@ -1083,7 +1106,7 @@ abbr {
 }
 
 .z300 {
-  z-index: 300000;
+  z-index: $z-tooltip;
 }
 
 label.label {
@@ -1272,7 +1295,7 @@ textarea.input:focus {
     border-radius: 0.5em;
     padding: 2.8em 3em 3em 3em;
 
-    h1.title {
+    h2.title {
       font-family: Lato;
       font-weight: 400;
       font-size: 3em;
@@ -1301,7 +1324,7 @@ textarea.input:focus {
     .box {
       padding: 1.5em;
 
-      h1.title {
+      h2.title {
         font-size: 1.8em;
         margin-bottom: 0.5em;
       }
@@ -1705,6 +1728,26 @@ tbody:last-child .empty-line:last-child {
   .header-icon {
     visibility: hidden;
   }
+}
+
+.datatable th .field-header .flexrow-item:first-child {
+  flex: 1;
+}
+
+.datatable th .asset-field-menu-button {
+  align-items: center;
+  background: var(--background-alt);
+  border-radius: 50%;
+  display: inline-flex;
+  flex: 0 0 16px;
+  height: 16px;
+  justify-content: center;
+  padding: 1px;
+  width: 16px;
+}
+
+.datatable th .add-metadata-button {
+  margin-left: 0.3em;
 }
 
 // width: 0 + flex: 1 forces the link to size from flex space (not content), so the column can be resized smaller than the longest name.
@@ -2505,26 +2548,16 @@ th.validation-cell {
   }
 }
 
-#app .dp__active_date {
-  color: $black;
-  background: var(--background-selected);
-}
-
-#app .dp__today {
-  border-color: var(--background-selected);
-}
-
-#app .dp__date_hover:hover {
-  background: var(--background-selectable);
-}
-
-#app .dp__input {
+// Day-cell theming (selected/hover/today) lives in variables.scss on the
+// dp theme classes: the menu teleports to <body>, #app rules never
+// reach it. Only the input below renders in place.
+#app .dp--input {
   border-radius: 10px;
   height: 40px;
   width: 118px;
 }
 
-#app .datatable .dp__input {
+#app .datatable .dp--input {
   border-radius: 3px;
   height: 43px;
 }
@@ -2533,7 +2566,7 @@ th.validation-cell {
 // against the picker background. Bump it just enough to read as a
 // border without dominating, and keep the library defaults for
 // everything else (background, hover/focus stay untouched).
-.dp__theme_dark {
+.dp--theme-dark {
   --dp-border-color: #3a3a3a !important;
 }
 

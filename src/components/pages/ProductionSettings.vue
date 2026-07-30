@@ -4,42 +4,90 @@
       <div class="tabs">
         <ul>
           <li :class="{ 'is-active': isActiveTab('parameters') }">
-            <a @click="activeTab = 'parameters'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'parameters'"
+              @keydown.enter.prevent="activeTab = 'parameters'"
+              @keydown.space.prevent="activeTab = 'parameters'"
+            >
               {{ $t('productions.parameters.title') }}
             </a>
           </li>
           <li :class="{ 'is-active': isActiveTab('brief') }">
-            <a @click="activeTab = 'brief'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'brief'"
+              @keydown.enter.prevent="activeTab = 'brief'"
+              @keydown.space.prevent="activeTab = 'brief'"
+            >
               {{ $t('productions.brief.title') }}
             </a>
           </li>
           <li :class="{ 'is-active': isActiveTab('assetTypes') }">
-            <a @click="activeTab = 'assetTypes'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'assetTypes'"
+              @keydown.enter.prevent="activeTab = 'assetTypes'"
+              @keydown.space.prevent="activeTab = 'assetTypes'"
+            >
               {{ $t('asset_types.title') }}
             </a>
           </li>
           <li :class="{ 'is-active': isActiveTab('taskTypes') }">
-            <a @click="activeTab = 'taskTypes'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'taskTypes'"
+              @keydown.enter.prevent="activeTab = 'taskTypes'"
+              @keydown.space.prevent="activeTab = 'taskTypes'"
+            >
               {{ $t('task_types.title') }}
             </a>
           </li>
           <li :class="{ 'is-active': isActiveTab('taskStatus') }">
-            <a @click="activeTab = 'taskStatus'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'taskStatus'"
+              @keydown.enter.prevent="activeTab = 'taskStatus'"
+              @keydown.space.prevent="activeTab = 'taskStatus'"
+            >
               {{ $t('task_status.title') }}
             </a>
           </li>
           <li :class="{ 'is-active': isActiveTab('board') }">
-            <a @click="activeTab = 'board'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'board'"
+              @keydown.enter.prevent="activeTab = 'board'"
+              @keydown.space.prevent="activeTab = 'board'"
+            >
               {{ $t('board.settings.title') }}
             </a>
           </li>
           <li :class="{ 'is-active': isActiveTab('statusAutomations') }">
-            <a @click="activeTab = 'statusAutomations'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'statusAutomations'"
+              @keydown.enter.prevent="activeTab = 'statusAutomations'"
+              @keydown.space.prevent="activeTab = 'statusAutomations'"
+            >
               {{ $t('status_automations.title') }}
             </a>
           </li>
           <li :class="{ 'is-active': isActiveTab('backgrounds') }">
-            <a @click="activeTab = 'backgrounds'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'backgrounds'"
+              @keydown.enter.prevent="activeTab = 'backgrounds'"
+              @keydown.space.prevent="activeTab = 'backgrounds'"
+            >
               {{ $t('backgrounds.title') }}
             </a>
           </li>
@@ -56,9 +104,10 @@
 
       <div class="tab" v-show="isActiveTab('assetTypes')">
         <asset-type-settings
-          :asset-types="productionAssetTypes"
+          :asset-types="restrictedAssetTypes"
           :all-asset-types="assetTypes"
           @add="addAssetType"
+          @import-items="importAssetTypes"
           @remove="removeAssetType"
         />
       </div>
@@ -191,7 +240,15 @@ const taskStatusId = ref('')
 const assetTypes = computed(() => store.getters.assetTypes)
 const currentProduction = computed(() => store.getters.currentProduction)
 const isCurrentUserManager = computed(() => store.getters.isCurrentUserManager)
-const productionAssetTypes = computed(() => store.getters.productionAssetTypes)
+// The asset-type tab edits the production's explicit restriction set, so it
+// shows the raw asset_types (empty = no restriction). productionAssetTypes
+// can't be used here: it expands an empty list to every asset type, which
+// made removing the last type repaint the whole list and blocked removal.
+const restrictedAssetTypes = computed(() => {
+  const ids = currentProduction.value?.asset_types
+  if (!ids?.length) return []
+  return assetTypes.value.filter(assetType => ids.includes(assetType.id))
+})
 const productionTaskStatuses = computed(
   () => store.getters.productionTaskStatuses
 )
@@ -216,6 +273,15 @@ const addAssetType = assetTypeId => {
   store.dispatch('addAssetTypeToProduction', assetTypeId)
 }
 
+const importAssetTypes = async ({ ids, done }) => {
+  try {
+    await store.dispatch('addSettingsToProduction', { assetTypeIds: ids })
+  } catch (err) {
+    console.error(err)
+  }
+  done()
+}
+
 const removeAssetType = assetTypeId => {
   store.dispatch('removeAssetTypeFromProduction', assetTypeId)
 }
@@ -233,15 +299,12 @@ const removeTaskStatus = async id => {
 }
 
 const updateTaskStatusPriorities = async taskStatuses => {
-  const taskStatusLinks = taskStatuses.map((status, index) => ({
-    ...currentProduction.value.task_statuses_link[status.id],
-    priority: index + 1,
-    project_id: currentProduction.value.id,
-    task_status_id: status.id
-  }))
-  for (const taskStatusLink of taskStatusLinks) {
-    await store.dispatch('editTaskStatusLink', taskStatusLink)
-  }
+  // The batch route sets each priority from the list order and preserves
+  // the board roles of every link.
+  await store.dispatch('reorderTaskStatusLinks', {
+    projectId: currentProduction.value.id,
+    taskStatusIds: taskStatuses.map(status => status.id)
+  })
   await store.dispatch('loadContext')
 }
 

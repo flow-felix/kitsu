@@ -1,6 +1,9 @@
 <template>
   <div class="field" :class="{ 'is-inline': isInline }">
-    <label class="label" v-if="label">{{ label }}</label>
+    <label class="label" :for="fieldId" v-if="label">{{ label }}</label>
+    <label class="visuallyhidden" :for="fieldId" v-else-if="placeholder">
+      {{ placeholder }}
+    </label>
     <label class="label empty-label" v-if="emptyLabel">&nbsp;</label>
     <p
       class="control"
@@ -10,6 +13,7 @@
       }"
     >
       <input
+        :id="fieldId"
         ref="inputRef"
         :class="
           errored
@@ -17,6 +21,8 @@
             : 'input flexrow-item' + inputClass
         "
         :autocomplete="autocomplete"
+        :aria-describedby="errored ? errorId : undefined"
+        :aria-invalid="errored"
         :disabled="disabled"
         :maxlength="maxlength"
         :min="type === 'number' ? min || 0 : undefined"
@@ -41,14 +47,14 @@
         {{ unitLabel }}
       </span>
     </p>
-    <p class="error" v-if="errored">
+    <p class="error" :id="errorId" v-if="errored">
       {{ errorText }}
     </p>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, useId } from 'vue'
 
 const props = defineProps({
   autocomplete: {
@@ -124,6 +130,8 @@ const props = defineProps({
 
 const emit = defineEmits(['enter', 'update:model-value'])
 
+const fieldId = useId()
+const errorId = `${fieldId}-error`
 const inputRef = ref(null)
 
 const getInputValue = () => {

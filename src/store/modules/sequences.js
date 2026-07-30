@@ -2,11 +2,11 @@ import peopleApi from '@/store/api/people'
 import shotsApi from '@/store/api/shots'
 import shotStore from '@/store/modules/shots'
 
-import func from '@/lib/func'
 import { getTaskTypePriorityOfProd } from '@/lib/productions'
 import { buildSequenceIndex, indexSearch } from '@/lib/indexing'
 import {
   sortByName,
+  sortByPersonName,
   sortSequences,
   sortSequenceResult,
   sortValidationColumns
@@ -113,7 +113,7 @@ const helpers = {
     ).toString()
     task.task_status_short_name = taskStatusMap.get(
       task.task_status_id
-    ).short_name
+    )?.short_name
 
     Object.assign(task, {
       project_id: sequence.production_id,
@@ -365,6 +365,9 @@ const actions = {
     const episode = isTVShow ? rootGetters.currentEpisode : null
     const episodeMap = rootGetters.episodeMap
     return shotsApi.getSequences(production, episode).then(sequences => {
+      if (production.id !== rootGetters.currentProduction?.id) {
+        return sequences
+      }
       commit(LOAD_SEQUENCES_END, {
         sequences,
         episodeMap,
@@ -412,10 +415,13 @@ const actions = {
     return shotsApi
       .getSequencesWithTasks(production, episode)
       .then(sequences => {
+        if (production.id !== rootGetters.currentProduction?.id) {
+          return sequences
+        }
         if (
           !isTVShow ||
           sequences.length === 0 ||
-          sequences[0].episode_id === rootGetters.currentEpisode.id
+          sequences[0].episode_id === rootGetters.currentEpisode?.id
         ) {
           commit(SET_SEQUENCES_WITH_TASKS, {
             sequences,
@@ -452,16 +458,12 @@ const actions = {
     return shotsApi.newSequence(sequence).then(sequence => {
       commit(NEW_SEQUENCE_END, { sequence, episodeMap })
       const taskTypeIds = rootGetters.productionSequenceTaskTypeIds
-      const createTaskPromises = taskTypeIds.map(taskTypeId =>
-        dispatch('createTask', {
-          entityId: sequence.id,
-          projectId: sequence.project_id,
-          taskTypeId: taskTypeId,
-          type: 'sequences'
-        })
-      )
-      return func
-        .runPromiseAsSeries(createTaskPromises)
+      // An empty list means "all valid task types" server-side: skip the call.
+      if (taskTypeIds.length === 0) return sequence
+      return dispatch('createEntityTasks', {
+        entityId: sequence.id,
+        taskTypeIds
+      })
         .then(() => sequence)
         .catch(console.error)
     })
@@ -604,7 +606,7 @@ const mutations = {
     cache.sequences = []
     state.currentSequence = null
     state.displayedSequences = []
-    cache.sequenceMap = new Map()
+    cache.sequenceMap.clear()
     state.selectedSequences = new Map()
   },
 
@@ -616,7 +618,7 @@ const mutations = {
     cache.sequences = []
     state.currentSequence = null
     state.displayedSequences = []
-    cache.sequenceMap = new Map()
+    cache.sequenceMap.clear()
     state.selectedSequences = new Map()
   },
 
@@ -654,7 +656,7 @@ const mutations = {
     let isTime = false
     let isEstimation = false
     let isResolution = false
-    cache.sequenceMap = new Map()
+    cache.sequenceMap.clear()
     sequences.forEach(sequence => {
       const taskIds = []
       const validations = new Map()
@@ -684,13 +686,11 @@ const mutations = {
         taskIds.push(task.id)
 
         const taskType = taskTypeMap.get(task.task_type_id)
-        if (!validationColumns[taskType.name]) {
+        if (taskType && !validationColumns[taskType.name]) {
           validationColumns[taskType.name] = taskType.id
         }
         if (task.assignees.length > 1) {
-          task.assignees = task.assignees.sort((a, b) => {
-            return personMap.get(a).name.localeCompare(personMap.get(b))
-          })
+          task.assignees = sortByPersonName(task.assignees, personMap)
         }
       })
       sequence.tasks = taskIds
@@ -840,7 +840,7 @@ const mutations = {
     cache.sequences = []
     cache.result = []
     cache.sequenceIndex = {}
-    cache.sequenceMap = new Map()
+    cache.sequenceMap.clear()
     state.sequenceValidationColumns = []
 
     state.isSequencesLoading = true

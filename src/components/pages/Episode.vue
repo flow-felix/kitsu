@@ -116,7 +116,7 @@
 
         <div class="flexrow">
           <span v-show="currentSection === 'casting'">
-            {{ nbAssets }} {{ $tc('assets.number', nbAssets) }}
+            {{ nbAssets }} {{ $t('assets.number', nbAssets) }}
           </span>
           <span
             class="tag tag-standby"
@@ -191,7 +191,8 @@
                         :task-type="taskTypeMap.get(asset.ready_for)"
                         :current-production-id="currentProduction.id"
                         :title="
-                          'Ready for: ' + taskTypeMap.get(asset.ready_for).name
+                          'Ready for: ' +
+                          (taskTypeMap.get(asset.ready_for)?.name || '')
                         "
                         v-if="asset.ready_for"
                       />
@@ -227,6 +228,8 @@
               :is-estimation-linked="true"
               :hide-root="true"
               :with-milestones="false"
+              @item-changed="saveTaskScheduleItem"
+              @estimation-changed="event => saveTaskScheduleItem(event.item)"
             />
           </div>
         </div>

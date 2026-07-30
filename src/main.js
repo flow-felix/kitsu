@@ -21,7 +21,7 @@ import IO from 'socket.io-client'
 import VueAnimXYZ from '@animxyz/vue3'
 import '@animxyz/core'
 
-import VueDatePicker from '@vuepic/vue-datepicker'
+import { VueDatePicker } from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
 
 const app = createApp(App)
@@ -53,7 +53,14 @@ app.directive('focus', {
 // Inject the socket into the store.
 store.$socket = app.config.globalProperties.$socket
 
-app.config.compilerOptions.whitespace = 'preserve'
+// Last-resort error logging: Sentry only runs in production builds, and
+// without these handlers dev/self-hosted errors vanish silently.
+app.config.errorHandler = (err, instance, info) => {
+  console.error(`Vue error in ${info}:`, err)
+}
+window.addEventListener('unhandledrejection', event => {
+  console.error('Unhandled promise rejection:', event.reason)
+})
 
 setupChunkErrorHandler(router)
 

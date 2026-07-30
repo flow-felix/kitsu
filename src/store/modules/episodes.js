@@ -2,11 +2,11 @@ import peopleApi from '@/store/api/people'
 import shotsApi from '@/store/api/shots'
 import shotStore from '@/store/modules/shots'
 
-import func from '@/lib/func'
 import { getTaskTypePriorityOfProd } from '@/lib/productions'
 import { buildEpisodeIndex, indexSearch } from '@/lib/indexing'
 import {
   sortByName,
+  sortByPersonName,
   sortEpisodeResult,
   sortValidationColumns
 } from '@/lib/sorting'
@@ -105,7 +105,7 @@ const helpers = {
     ).toString()
     task.task_status_short_name = taskStatusMap.get(
       task.task_status_id
-    ).short_name
+    )?.short_name
 
     const episodeName = episode.name
     Object.assign(task, {
@@ -396,6 +396,9 @@ const actions = {
     const routeEpisodeId = rootGetters.route.params.episode_id
     const userFilters = rootGetters.userFilters
     return shotsApi.getEpisodes(currentProduction).then(episodes => {
+      if (currentProduction?.id !== rootGetters.currentProduction?.id) {
+        return episodes
+      }
       commit(LOAD_EPISODES_END, { episodes, routeEpisodeId, userFilters })
       return episodes
     })
@@ -410,6 +413,9 @@ const actions = {
     const taskStatusMap = rootGetters.taskStatusMap
     const taskTypeMap = rootGetters.taskTypeMap
     return shotsApi.getEpisodesWithTasks(production).then(episodes => {
+      if (production?.id !== rootGetters.currentProduction?.id) {
+        return episodes
+      }
       commit(SET_EPISODES_WITH_TASKS, {
         episodes,
         routeEpisodeId,
@@ -435,16 +441,12 @@ const actions = {
     return shotsApi.newEpisode(episode).then(episode => {
       commit(NEW_EPISODE_END, episode)
       const taskTypeIds = rootGetters.productionEpisodeTaskTypeIds
-      const createTaskPromises = taskTypeIds.map(taskTypeId =>
-        dispatch('createTask', {
-          entityId: episode.id,
-          projectId: episode.project_id,
-          taskTypeId: taskTypeId,
-          type: 'episodes'
-        })
-      )
-      return func
-        .runPromiseAsSeries(createTaskPromises)
+      // An empty list means "all valid task types" server-side: skip the call.
+      if (taskTypeIds.length === 0) return episode
+      return dispatch('createEntityTasks', {
+        entityId: episode.id,
+        taskTypeIds
+      })
         .then(() => episode)
         .catch(console.error)
     })
@@ -602,7 +604,7 @@ const mutations = {
     let isTime = false
     let isEstimation = false
     let isResolution = false
-    cache.episodeMap = new Map()
+    cache.episodeMap.clear()
     episodes.forEach(episode => {
       const taskIds = []
       const validations = new Map()
@@ -628,13 +630,11 @@ const mutations = {
         taskIds.push(task.id)
 
         const taskType = taskTypeMap.get(task.task_type_id)
-        if (!validationColumns[taskType.name]) {
+        if (taskType && !validationColumns[taskType.name]) {
           validationColumns[taskType.name] = taskType.id
         }
         if (task.assignees.length > 1) {
-          task.assignees = task.assignees.sort((a, b) => {
-            return personMap.get(a).name.localeCompare(personMap.get(b))
-          })
+          task.assignees = sortByPersonName(task.assignees, personMap)
         }
       })
       episode.tasks = taskIds
@@ -772,7 +772,7 @@ const mutations = {
     cache.episodes = []
     cache.result = []
     cache.episodeIndex = {}
-    cache.episodeMap = new Map()
+    cache.episodeMap.clear()
     state.episodeValidationColumns = []
 
     state.isEpisodesLoading = true
@@ -791,7 +791,7 @@ const mutations = {
   [LOAD_EPISODES_END](state, { episodes, routeEpisodeId }) {
     if (state.episodes.length > 0) return
     if (!episodes) episodes = []
-    cache.episodeMap = new Map()
+    cache.episodeMap.clear()
     episodes.forEach(episode => {
       if (!EPISODE_STATUS.includes(episode.status)) {
         episode.status = 'running'
@@ -807,13 +807,14 @@ const mutations = {
     state.displayedEpisodes = state.episodes
     state.displayedEpisodesLength = state.episodes.length
 
-    // Set currentEpisode
-    if (state.episodes.length > 0) {
-      if (routeEpisodeId === 'all') {
-        state.currentEpisode = { id: 'all' }
-      } else if (routeEpisodeId === 'main') {
-        state.currentEpisode = { id: 'main' }
-      } else if (routeEpisodeId) {
+    // Set currentEpisode. The 'all' and 'main' pseudo-episodes are valid
+    // even when the production has no episodes.
+    if (routeEpisodeId === 'all') {
+      state.currentEpisode = { id: 'all' }
+    } else if (routeEpisodeId === 'main') {
+      state.currentEpisode = { id: 'main' }
+    } else if (state.episodes.length > 0) {
+      if (routeEpisodeId) {
         state.currentEpisode = cache.episodeMap.get(routeEpisodeId)
       }
       if (!state.currentEpisode) {

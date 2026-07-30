@@ -1,6 +1,8 @@
 import {
   sortAssets,
+  sortByMetadata,
   sortByName,
+  sortByPersonName,
   sortByDate,
   sortPeople,
   sortPlaylists,
@@ -21,6 +23,27 @@ const taskTypeMap = new Map(Object.entries({
 
 describe('lib/sorting', () => {
   beforeEach(() => {
+  })
+
+  it('sortByMetadata', () => {
+    const entries = [
+      { id: 1, data: { render_layer: 'fg' } },
+      { id: 2, data: {} },
+      { id: 3, data: { render_layer: 'bg' } }
+    ]
+    let results = [...entries].sort(
+      sortByMetadata({ column: 'render_layer', data_type: 'string' })
+    )
+    expect(results.map(entry => entry.id)).toEqual([3, 1, 2])
+
+    const numberEntries = [
+      { id: 1, data: { weight: '10' } },
+      { id: 2, data: { weight: '2' } }
+    ]
+    results = [...numberEntries].sort(
+      sortByMetadata({ column: 'weight', data_type: 'number' })
+    )
+    expect(results.map(entry => entry.id)).toEqual([2, 1])
   })
 
   it('sortByName', () => {
@@ -393,6 +416,16 @@ describe('lib/sorting', () => {
     expect(results[3].id).toEqual(2)
   })
 
+  it('sortPeople puts people without a first name first, consistently', () => {
+    const anna = { id: 1, first_name: 'Anna', last_name: 'Doe', active: true }
+    const bot = { id: 2, first_name: '', last_name: '', active: true }
+
+    // The comparator must be antisymmetric: the result cannot depend on the
+    // input order (the old comparator returned -1 for every empty name).
+    expect(sortPeople([anna, bot]).map(p => p.id)).toEqual([2, 1])
+    expect(sortPeople([bot, anna]).map(p => p.id)).toEqual([2, 1])
+  })
+
   it('sortTaskTypeScheduleTime', () => {
     const scheduleItems = [
       {
@@ -541,31 +574,106 @@ describe('lib/sorting', () => {
       }
     ]
     const sortingMetadata = [
-      { type: 'metadata', column: 'valid' }
+      { type: 'metadata', column: 'metadata1', data_type: 'string' }
     ]
     const sortingTaskType = [
-      { type: 'task_type', column: 'metadata1' }
+      { type: 'task_type', column: 'valid' }
+    ]
+    // task2 sorts before task1 so the task-type order differs from the
+    // metadata one: a comparator mix-up cannot pass both assertions.
+    const taskMap = new Map()
+    taskMap.set('task1', { task_status_short_name: 'status Z' })
+    taskMap.set('task2', { task_status_short_name: 'status A' })
+
+    const resultsMetadata = sortAssetResult(
+      entries,
+      sortingMetadata,
+      taskTypeMap,
+      taskMap
+    )
+    expect(resultsMetadata.map(entry => entry.id)).toEqual([5, 4, 3, 2, 1])
+
+    const resultsTaskTypes = sortAssetResult(
+      entries,
+      sortingTaskType,
+      taskTypeMap,
+      taskMap
+    )
+    expect(resultsTaskTypes.map(entry => entry.id)).toEqual([5, 3, 2, 1, 4])
+  })
+
+  it('sortAssetResult by field', () => {
+    const entries = [
+      {
+        id: 1,
+        canceled: false,
+        name: 'Banana',
+        asset_type_name: 'prop',
+        estimation: 5,
+        episode_id: 'ep2'
+      },
+      {
+        id: 2,
+        canceled: false,
+        name: 'apple',
+        asset_type_name: 'prop',
+        estimation: 20,
+        episode_id: 'ep1'
+      },
+      {
+        id: 3,
+        canceled: false,
+        name: '',
+        asset_type_name: 'prop',
+        estimation: 3,
+        episode_id: null
+      }
     ]
     const taskMap = new Map()
-    taskMap.set('task1', { task_status_short_name: 'status A' })
-    taskMap.set('task2', { task_status_short_name: 'status B' })
-    sortAssetResult(entries, sortingMetadata, taskTypeMap, taskMap)
-    sortAssetResult(entries, sortingTaskType, taskTypeMap, taskMap)
-    /*
-    expect(resultsMetadata).toHaveLength(5)
-    expect(resultsMetadata[0].id).toEqual(5)
-    expect(resultsMetadata[1].id).toEqual(4)
-    expect(resultsMetadata[2].id).toEqual(3)
-    expect(resultsMetadata[3].id).toEqual(2)
-    expect(resultsMetadata[4].id).toEqual(1)
+    const episodeMap = new Map([
+      ['ep1', { name: 'Alpha' }],
+      ['ep2', { name: 'Zeta' }]
+    ])
 
-    expect(resultsTaskTypes).toHaveLength(5)
-    expect(resultsTaskTypes[0].id).toEqual(5)
-    expect(resultsTaskTypes[1].id).toEqual(4)
-    expect(resultsTaskTypes[2].id).toEqual(3)
-    expect(resultsTaskTypes[3].id).toEqual(2)
-    expect(resultsTaskTypes[4].id).toEqual(1)
-    */
+    const byName = sortAssetResult(
+      entries,
+      [{ type: 'field', column: 'name' }],
+      taskTypeMap,
+      taskMap,
+      episodeMap
+    )
+    // empty name sorts last
+    expect(byName.map(entry => entry.id)).toEqual([2, 1, 3])
+
+    // numeric field compares as numbers, not lexicographically ('20' > '5')
+    const byEstimation = sortAssetResult(
+      entries,
+      [{ type: 'field', column: 'estimation' }],
+      taskTypeMap,
+      taskMap,
+      episodeMap
+    )
+    expect(byEstimation.map(entry => entry.id)).toEqual([3, 1, 2])
+
+    // episode_id resolves to the episode name through episodeMap
+    const byEpisode = sortAssetResult(
+      entries,
+      [{ type: 'field', column: 'episode_id' }],
+      taskTypeMap,
+      taskMap,
+      episodeMap
+    )
+    expect(byEpisode.map(entry => entry.id)).toEqual([2, 1, 3])
+
+    // ascending: false reverses the order
+    const byNameDesc = sortAssetResult(
+      entries,
+      [{ type: 'field', column: 'name', ascending: false }],
+      taskTypeMap,
+      taskMap,
+      episodeMap
+    )
+    expect(byNameDesc.map(entry => entry.id)).toEqual([3, 1, 2])
   })
 
   it('sortShotResult', () => {
@@ -635,19 +743,20 @@ describe('lib/sorting', () => {
       ['task1', { task_status_short_name: 'status A' }],
       ['task2', { task_status_short_name: 'status B' }]
     ])
-    sortShotResult(entries, sortingMetadata, taskTypeMap, taskMap)
-    const resultsTaskTypes =
-      sortShotResult(entries, sortingTaskType, taskTypeMap, taskMap)
-    /*
-    expect(resultsMetadata).toHaveLength(6)
-    expect(resultsMetadata[0].id).toEqual(5)
-    expect(resultsMetadata[1].id).toEqual(4)
-    expect(resultsMetadata[2].id).toEqual(6)
-    expect(resultsMetadata[3].id).toEqual(3)
-    expect(resultsMetadata[4].id).toEqual(1)
-    expect(resultsMetadata[5].id).toEqual(3)
-    */
+    const resultsMetadata = sortShotResult(
+      entries,
+      sortingMetadata,
+      taskTypeMap,
+      taskMap
+    )
+    expect(resultsMetadata.map(entry => entry.id)).toEqual([5, 4, 6, 1, 3, 2])
 
+    const resultsTaskTypes = sortShotResult(
+      entries,
+      sortingTaskType,
+      taskTypeMap,
+      taskMap
+    )
     expect(resultsTaskTypes).toHaveLength(6)
     expect(resultsTaskTypes[0].id).toEqual(5)
     expect(resultsTaskTypes[1].id).toEqual(4)
@@ -655,5 +764,47 @@ describe('lib/sorting', () => {
     expect(resultsTaskTypes[3].id).toEqual(3)
     expect(resultsTaskTypes[4].id).toEqual(1)
     expect(resultsTaskTypes[5].id).toEqual(2)
+  })
+
+  it('sortByPersonName', () => {
+    const personMap = new Map(
+      Object.entries({
+        'person-1': { id: 'person-1', name: 'Charlie' },
+        'person-2': { id: 'person-2', name: 'Alice' },
+        'person-3': { id: 'person-3', name: 'Bob' }
+      })
+    )
+
+    // sorts the ids in place, alphabetically by the person's name
+    const assignees = ['person-1', 'person-2', 'person-3']
+    const sorted = sortByPersonName(assignees, personMap)
+    expect(sorted).toBe(assignees)
+    expect(sorted).toEqual(['person-2', 'person-3', 'person-1'])
+
+    // ids missing from the map sink to the end instead of throwing, so
+    // assignees[0] keeps naming a person who resolved
+    const withMissing = ['person-1', 'missing', 'person-3']
+    expect(sortByPersonName(withMissing, personMap)).toEqual([
+      'person-3',
+      'person-1',
+      'missing'
+    ])
+
+    // an id that resolves always wins the first slot over one that does not
+    expect(sortByPersonName(['missing', 'person-1'], personMap)).toEqual([
+      'person-1',
+      'missing'
+    ])
+
+    // several holes keep the resolved names ordered ahead of them
+    expect(
+      sortByPersonName(['gone', 'person-1', 'missing', 'person-2'], personMap)
+    ).toEqual(['person-2', 'person-1', 'gone', 'missing'])
+
+    // nothing resolves: no throw, the list is left as is
+    expect(sortByPersonName(['gone', 'missing'], personMap)).toEqual([
+      'gone',
+      'missing'
+    ])
   })
 })

@@ -47,7 +47,7 @@ import {
   supportsVideoFrameCallback
 } from '@/lib/players/frameRenderer'
 import { swallowBrowserZoom } from '@/lib/players/wheel'
-import { formatFrame } from '@/lib/video'
+import { DEFAULT_FPS, formatFrame } from '@/lib/video'
 
 import Spinner from '@/components/widgets/Spinner.vue'
 
@@ -165,6 +165,10 @@ let previousDimensions = null
 let renderer = null
 let renderLoopHandle = null
 let renderLoopIsRvfc = false
+// Target of a raw seek issued while playing: frames already queued
+// behind the seek point keep presenting for a tick or two, and painting
+// them flashes content past the target (visible on handle-out loops).
+let seekGuardTarget = null
 // mediaTime of the last frame the browser actually presented. The
 // source of truth for emitted times/frames (currentTime lies during
 // decode latency, which is the whole point of this pipeline).
@@ -180,7 +184,7 @@ const video = computed(() => movie.value)
 const extension = computed(() => (props.preview ? props.preview.extension : ''))
 
 const fps = computed(
-  () => props.fps || parseFloat(currentProduction.value?.fps) || 25
+  () => props.fps || parseFloat(currentProduction.value?.fps) || DEFAULT_FPS
 )
 
 const frameDuration = computed(
@@ -256,6 +260,7 @@ const setCurrentFrame = frame => {
 
 const setCurrentTimeRaw = currentTime => {
   if (currentTime < frameDuration.value) currentTime = 0
+  if (!video.value.paused) seekGuardTarget = currentTime
   video.value.currentTime = currentTime
 }
 
@@ -349,7 +354,6 @@ const getFrameFromPlayer = () => {
         : 0
   if (raw === 0) return 0
   let frame = Math.ceil(raw / frameDuration.value) + 1
-  frame = Number(frame.toPrecision(4))
   frame = Math.min(frame, props.nbFrames)
   return frame
 }
@@ -376,6 +380,17 @@ const startRenderLoop = () => {
     renderLoopIsRvfc = true
     const tick = (now, metadata) => {
       if (!video.value) return
+      // Skip presentations far from an in-flight raw-seek target: the
+      // canvas holds the last pre-seek frame instead of flashing the
+      // stale frames still coming out of the decoder.
+      if (
+        seekGuardTarget !== null &&
+        Math.abs(metadata.mediaTime - seekGuardTarget) > 2 * frameDuration.value
+      ) {
+        renderLoopHandle = video.value.requestVideoFrameCallback(tick)
+        return
+      }
+      seekGuardTarget = null
       hasPaintedVideoFrame = true
       lastMediaTime = metadata.mediaTime
       currentTimeRaw.value = metadata.mediaTime
@@ -392,13 +407,18 @@ const startRenderLoop = () => {
     renderLoopIsRvfc = false
     let lastDrawnTime = -1
     const tick = () => {
-      if (video.value && video.value.currentTime !== lastDrawnTime) {
-        hasPaintedVideoFrame = true
-        lastDrawnTime = video.value.currentTime
-        currentTimeRaw.value = lastDrawnTime
-        renderer?.drawFrame()
-        if (!video.value.paused) {
-          emitFrameSignals(lastDrawnTime)
+      // Mid-seek (no rVFC, e.g. Firefox): currentTime already reads the
+      // target while the decoder still holds the old position — drawing
+      // would paint stale frames past the trim and emit stale times.
+      if (video.value && !video.value.seeking) {
+        if (video.value.currentTime !== lastDrawnTime) {
+          hasPaintedVideoFrame = true
+          lastDrawnTime = video.value.currentTime
+          currentTimeRaw.value = lastDrawnTime
+          renderer?.drawFrame()
+          if (!video.value.paused) {
+            emitFrameSignals(lastDrawnTime)
+          }
         }
       }
       renderLoopHandle = requestAnimationFrame(tick)
@@ -442,10 +462,19 @@ const play = () => {
   ) {
     setCurrentTime(0)
   }
-  video.value.play()
+  // a replay seek is issued while the video is still paused, so
+  // setCurrentTimeRaw could not arm the seek guard: once playback starts,
+  // stale pre-seek frames still coming out of the decoder would emit
+  // end-range frame numbers and re-trigger the trim stop, parking the
+  // player a few frames in, paused
+  if (video.value.seeking) {
+    seekGuardTarget = video.value.currentTime
+  }
+  video.value.play()?.catch(() => {})
 }
 
 const pause = () => {
+  seekGuardTarget = null
   video.value.pause()
   video.value.currentTime = frameToTime(props.currentFrame)
   emit('frame-update', props.currentFrame)
@@ -704,6 +733,10 @@ onMounted(() => {
       })
 
       video.value.addEventListener('waiting', () => {
+        // In-flight raw seek (trim loop, room sync): the canvas holds the
+        // last frame on purpose — flipping isLoading would hide the canvas
+        // and flash the spinner for a seek-length wait.
+        if (seekGuardTarget !== null) return
         if (props.name.indexOf('comparison') < 0) {
           isLoading.value = true
         }

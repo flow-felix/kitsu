@@ -4,15 +4,25 @@
       <div class="nav-left">
         <a
           class="studio-logo-wrapper nav-item"
+          role="button"
+          tabindex="0"
           @click="toggleSidebar()"
+          @keydown.enter.prevent="toggleSidebar()"
+          @keydown.space.prevent="toggleSidebar()"
           v-if="!isCurrentUserClient"
         >
           <img
             class="studio-logo"
             :src="logoPath"
+            :alt="organisation.name"
             v-if="organisation?.has_avatar"
           />
-          <img class="studio-logo" src="@/assets/kitsu.png" v-else />
+          <img
+            class="studio-logo"
+            src="@/assets/kitsu.png"
+            alt="Kitsu"
+            v-else
+          />
         </a>
 
         <router-link
@@ -23,9 +33,15 @@
           <img
             class="studio-logo"
             :src="logoPath"
+            :alt="organisation.name"
             v-if="organisation?.has_avatar"
           />
-          <img class="studio-logo" src="@/assets/kitsu.png" v-else />
+          <img
+            class="studio-logo"
+            src="@/assets/kitsu.png"
+            alt="Kitsu"
+            v-else
+          />
         </router-link>
 
         <div class="flexrow topbar-menu" v-if="isProductionContext">
@@ -100,7 +116,7 @@
           }"
           v-if="!isCurrentUserAdmin && !isCurrentUserClient"
         >
-          {{ $t('timesheets.title') }}
+          {{ $t('timesheets.timelog_title') }}
         </router-link>
         <global-search-field
           class="flexrow-item mr0"
@@ -126,7 +142,14 @@
             <help-circle-icon />
           </a>
         </div>
-        <div class="nav-item pointer" @click="toggleUserMenu">
+        <div
+          class="nav-item pointer"
+          role="button"
+          tabindex="0"
+          @click="toggleUserMenu"
+          @keydown.enter.prevent="toggleUserMenu"
+          @keydown.space.prevent="toggleUserMenu"
+        >
           <people-avatar
             class="avatar"
             :is-lazy="false"
@@ -151,11 +174,21 @@
             {{ $t('main.profile') }}
           </router-link>
         </li>
-        <li @click="toggleDarkTheme">
+        <li
+          role="button"
+          tabindex="0"
+          @click="toggleDarkTheme"
+          @keydown.enter.prevent="toggleDarkTheme"
+          @keydown.space.prevent="toggleDarkTheme"
+        >
           {{ !isDarkTheme ? $t('main.dark_theme') : $t('main.white_theme') }}
         </li>
         <li
+          role="button"
+          tabindex="0"
           @click="toggleDesktopNotifications"
+          @keydown.enter.prevent="toggleDesktopNotifications"
+          @keydown.space.prevent="toggleDesktopNotifications"
           :class="{ disabled: desktopNotificationsPermission === 'denied' }"
           :title="
             desktopNotificationsPermission === 'denied'
@@ -181,7 +214,13 @@
             </span>
           </span>
         </li>
-        <li @click="setSupportChat(!isSupportChat)">
+        <li
+          role="button"
+          tabindex="0"
+          @click="setSupportChat(!isSupportChat)"
+          @keydown.enter.prevent="setSupportChat(!isSupportChat)"
+          @keydown.space.prevent="setSupportChat(!isSupportChat)"
+        >
           {{
             isSupportChat
               ? $t('main.hide_support_chat')
@@ -198,7 +237,13 @@
           </a>
         </li>
         <li>
-          <a @click="display.shortcutModal = true">
+          <a
+            role="button"
+            tabindex="0"
+            @click="display.shortcutModal = true"
+            @keydown.enter.prevent="display.shortcutModal = true"
+            @keydown.space.prevent="display.shortcutModal = true"
+          >
             {{ $t('keyboard.shortcuts') }}
           </a>
         </li>
@@ -233,7 +278,14 @@
         <li class="version">Kitsu {{ kitsuVersion }}</li>
         <hr />
         <li>
-          <a @click="onLogout" class="flexrow">
+          <a
+            class="flexrow"
+            role="button"
+            tabindex="0"
+            @click="onLogout"
+            @keydown.enter.prevent="onLogout"
+            @keydown.space.prevent="onLogout"
+          >
             <log-out-icon class="flexrow-item icon-1x" />
             <span class="flexrow-item">{{ $t('main.logout') }}</span>
           </a>
@@ -383,11 +435,25 @@ export default {
       return ['breakdown']
     },
 
+    scheduleSections() {
+      return ['schedule']
+    },
+
     // Asset pages require a all section and a main pack section.
     currentEpisodeOptionGroups() {
       let section = this.isCurrentUserClient ? 'playlists' : 'assets'
       if (this.currentProjectSection) {
         section = this.currentProjectSection
+      }
+      // Plugin pages accept the all / main pseudo-episodes (forwarded to
+      // the plugin iframe as episode_id): without these options the
+      // combobox silently displays the first episode while the route
+      // says "all".
+      if (this.$route.params.plugin_id !== undefined) {
+        const episodeList = this.getBaseEpisodeOptionGroups(
+          'episodes.all_episodes'
+        )
+        return [{ name: '', episodeList }].concat(this.episodeOptionGroups)
       }
       if (this.assetSections.includes(section)) {
         const episodeList = this.getBaseEpisodeOptionGroups('main.all_assets')
@@ -404,6 +470,11 @@ export default {
         ].concat(this.episodeOptionGroups)
       } else if (['breakdown'].includes(section)) {
         const episodeList = this.getBaseEpisodeOptionGroups('shots.episodes')
+        return [{ name: '', episodeList }].concat(this.episodeOptionGroups)
+      } else if (this.scheduleSections.includes(section)) {
+        const episodeList = this.getBaseEpisodeOptionGroups(
+          'episodes.all_episodes'
+        )
         return [{ name: '', episodeList }].concat(this.episodeOptionGroups)
       } else {
         return this.episodeOptionGroups
@@ -757,15 +828,15 @@ export default {
                   ? routeEpisodeId
                   : 'all'
             } else if (
-              this.currentProjectSection === 'playlists' &&
-              routeEpisodeId === 'all'
+              ['playlists', 'schedule'].includes(this.currentProjectSection) &&
+              ['all', 'main'].includes(routeEpisodeId)
             ) {
-              this.currentEpisodeId = 'all'
+              this.currentEpisodeId = routeEpisodeId
             } else if (
-              this.currentProjectSection === 'playlists' &&
-              routeEpisodeId === 'main'
+              this.$route.params.plugin_id &&
+              ['all', 'main'].includes(routeEpisodeId)
             ) {
-              this.currentEpisodeId = 'main'
+              this.currentEpisodeId = routeEpisodeId
             } else {
               let episode = episodes.find(({ id }) => id === routeEpisodeId)
               if (!episode) {
@@ -846,10 +917,18 @@ export default {
       const isAssetSection = this.assetSections.includes(section)
       const isEditSection = this.editSections.includes(section)
       const isBreakdownSection = this.breakdownSections.includes(section)
+      // The schedule keeps both pseudo-episodes: 'all' displays its
+      // production-wide planning, 'main' scopes it to the main pack.
+      const isScheduleSection = this.scheduleSections.includes(section)
+      // Plugin pages keep the all / main pseudo-episodes: coercing to the
+      // first episode desyncs the combobox from the episode_id actually
+      // forwarded to the plugin iframe.
       if (
+        pluginId === undefined &&
         !isAssetSection &&
         !isEditSection &&
         !isBreakdownSection &&
+        !isScheduleSection &&
         ['all', 'main'].includes(episodeId) &&
         this.episodes.length > 0
       ) {
@@ -898,7 +977,6 @@ export default {
         isTVShow &&
         section !== 'team' &&
         section !== 'news-feed' &&
-        section !== 'schedule' &&
         section !== 'production-settings' &&
         section !== 'brief' &&
         section !== 'budget' &&
@@ -1187,6 +1265,7 @@ export default {
 .studio-logo-wrapper {
   margin: 8px 8px;
   margin-right: 1em;
+  overflow: hidden;
   padding: 0;
 
   .studio-logo {

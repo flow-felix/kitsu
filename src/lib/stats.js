@@ -59,9 +59,13 @@ export const getRetakeChartData = (
   delete statusData.max_retake_count
   const valueField = dataType
   return [
-    ['retake', statusData.retake[valueField] || 0, RETAKE_CHART_COLORS.retake],
-    ['other', statusData.other[valueField] || 0, RETAKE_CHART_COLORS.other],
-    ['done', statusData.done[valueField] || 0, RETAKE_CHART_COLORS.done]
+    [
+      'retake',
+      statusData.retake?.[valueField] || 0,
+      RETAKE_CHART_COLORS.retake
+    ],
+    ['other', statusData.other?.[valueField] || 0, RETAKE_CHART_COLORS.other],
+    ['done', statusData.done?.[valueField] || 0, RETAKE_CHART_COLORS.done]
   ]
 }
 
@@ -184,6 +188,63 @@ const computeTaskResult = (
       }
     }
   }
+}
+
+// Aggregate the per-entry stats of the given entries into a single bucket
+// shaped like an entry (used for the "all" row when entries are filtered).
+export const aggregateStats = (mainStats, entryIds) => {
+  const result = {}
+  entryIds.forEach(entryId => {
+    const entryStats = mainStats[entryId]
+    if (!entryStats) return
+    Object.keys(entryStats).forEach(columnId => {
+      if (!result[columnId]) result[columnId] = {}
+      const columnStats = entryStats[columnId]
+      Object.keys(columnStats).forEach(taskStatusId => {
+        const data = columnStats[taskStatusId]
+        const target = result[columnId][taskStatusId]
+        if (!target) {
+          result[columnId][taskStatusId] = { ...data }
+        } else {
+          target.count += data.count || 0
+          target.frames += data.frames || 0
+          target.drawings += data.drawings || 0
+        }
+      })
+    })
+  })
+  return result
+}
+
+// Same as aggregateStats for retake stats (retake / done / other buckets).
+export const aggregateRetakeStats = (retakeStats, entryIds) => {
+  const result = {}
+  entryIds.forEach(entryId => {
+    const entryStats = retakeStats[entryId]
+    if (!entryStats) return
+    Object.keys(entryStats).forEach(columnId => {
+      if (!result[columnId]) {
+        result[columnId] = {
+          max_retake_count: 0,
+          retake: { count: 0, frames: 0, drawings: 0 },
+          done: { count: 0, frames: 0, drawings: 0 },
+          other: { count: 0, frames: 0, drawings: 0 }
+        }
+      }
+      const columnStats = entryStats[columnId]
+      const target = result[columnId]
+      target.max_retake_count = Math.max(
+        target.max_retake_count,
+        columnStats.max_retake_count || 0
+      )
+      ;['retake', 'done', 'other'].forEach(key => {
+        ;['count', 'frames', 'drawings'].forEach(field => {
+          target[key][field] += columnStats[key]?.[field] || 0
+        })
+      })
+    })
+  })
+  return result
 }
 
 export const getPercentage = (value, total) => {

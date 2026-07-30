@@ -25,7 +25,10 @@
         @toggle-stick="metadataStickColumnClicked($event)"
       />
 
-      <table class="datatable">
+      <table
+        class="datatable"
+        :class="{ 'expand-task-types': displaySettings.fullTaskTypeNames }"
+      >
         <thead class="datatable-head" id="datatable-edit" v-columns-resizable>
           <tr>
             <th scope="col" class="episode" ref="th-episode" v-if="isTVShow">
@@ -457,7 +460,7 @@
       v-if="isEmptyList && !isCurrentUserClient && !isLoading"
     >
       <p class="info">
-        <img src="../../assets/illustrations/empty_edit.png" />
+        <img src="../../assets/illustrations/empty_edit.png" alt="" />
       </p>
       <p class="info">{{ $t('edits.empty_list') }}</p>
       <button-simple
@@ -471,23 +474,23 @@
       v-if="isEmptyList && isCurrentUserClient && !isLoading"
     >
       <p class="info">
-        <img src="../../assets/illustrations/empty_edit.png" />
+        <img src="../../assets/illustrations/empty_edit.png" alt="" />
       </p>
       <p class="info">{{ $t('edits.empty_list_client') }}</p>
     </div>
 
     <p class="has-text-centered nb-edits" v-if="!isEmptyList && !isLoading">
       {{ displayedEditsLength }}
-      {{ $tc('edits.number', displayedEditsLength) }}
+      {{ $t('edits.number', displayedEditsLength) }}
       <span v-if="displayedEditsTimeSpent > 0 || displayedEditsEstimation > 0">
         ({{ formatDuration(displayedEditsTimeSpent) }}
         {{
           isDurationInHours
-            ? $tc(
+            ? $t(
                 'main.hours_spent',
                 formatDuration(displayedEditsTimeSpent, false)
               )
-            : $tc(
+            : $t(
                 'main.days_spent',
                 formatDuration(displayedEditsTimeSpent, false)
               )
@@ -495,11 +498,11 @@
         {{ formatDuration(displayedEditsEstimation) }}
         {{
           isDurationInHours
-            ? $tc(
+            ? $t(
                 'main.hours_estimated',
                 formatDuration(displayedEditsEstimation, false)
               )
-            : $tc(
+            : $t(
                 'main.man_days',
                 formatDuration(displayedEditsEstimation, false)
               )
@@ -897,6 +900,18 @@ thead .name.edit-name {
   min-width: 150px;
   max-width: 150px;
   width: 150px;
+}
+
+.expand-task-types :deep(.validation-cell) {
+  width: auto;
+  min-width: 150px;
+  max-width: none;
+}
+
+.expand-task-types :deep(.task-type-name) {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .estimation,

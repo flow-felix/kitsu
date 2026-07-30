@@ -250,18 +250,11 @@ import { useStore } from 'vuex'
 
 import darkTimesliderUrl from '@/assets/background/video-timeslider-dark.png'
 import { usePanzoomSync } from '@/composables/panzoom'
+import { useMediaKind } from '@/composables/players/mediaKind'
 import { isAltLetter } from '@/composables/players/previewShortcuts'
+import { usePlayerTransport } from '@/composables/players/transport'
 import { mergeAnnotationsByFrame } from '@/lib/players/annotation'
-import {
-  isDiffPreview,
-  isMarkdownPreview,
-  isModelPreview,
-  isMoviePreview,
-  isPdfPreview,
-  isPicturePreview,
-  isSoundPreview
-} from '@/lib/preview'
-import { floorToFrame, formatTime } from '@/lib/video'
+import { DEFAULT_FPS, floorToFrame, formatTime } from '@/lib/video'
 
 import SharedAnnotationOverlay from '@/components/players/annotations/SharedAnnotationOverlay.vue'
 import SharedPlaylistButtonBar from '@/components/players/bars/SharedPlaylistButtonBar.vue'
@@ -316,9 +309,7 @@ const isCommentsHidden = ref(
 const isEntitiesHidden = ref(false)
 const isFullScreen = ref(false)
 const isHd = ref(true)
-const isMuted = ref(false)
-const isPlaying = ref(false)
-const isRepeating = ref(false)
+const { isMuted, isPlaying, isRepeating } = usePlayerTransport()
 const maxDuration = ref(0)
 const movieDimensions = ref({ width: 0, height: 0 })
 const picturePlayer = ref(null)
@@ -347,7 +338,9 @@ const sharedApiPrefix = computed(() =>
   props.token ? `/api/shared/playlists/${props.token}` : ''
 )
 
-const fps = computed(() => parseFloat(props.playlist?.project_fps) || 25)
+const fps = computed(
+  () => parseFloat(props.playlist?.project_fps) || DEFAULT_FPS
+)
 const frameDuration = computed(
   () => Math.round((1 / fps.value) * 10000) / 10000
 )
@@ -414,24 +407,17 @@ const currentEntityPreviewLength = computed(() => {
 })
 
 const extension = computed(() => currentPreview.value?.extension || '')
-const isMovie = computed(() => isMoviePreview(extension.value))
-const isPicture = computed(() => isPicturePreview(extension.value))
-const isSound = computed(() => isSoundPreview(extension.value))
-const isModel = computed(() => isModelPreview(extension.value))
-const isPdf = computed(() => isPdfPreview(extension.value))
-const isMarkdown = computed(() => isMarkdownPreview(extension.value))
-const isDiff = computed(() => isDiffPreview(extension.value))
-const isOtherFile = computed(
-  () =>
-    !!currentPreview.value &&
-    !isMovie.value &&
-    !isPicture.value &&
-    !isSound.value &&
-    !isModel.value &&
-    !isPdf.value &&
-    !isMarkdown.value &&
-    !isDiff.value
-)
+const {
+  isDiff,
+  isFile,
+  isMarkdown,
+  isModel,
+  isMovie,
+  isPdf,
+  isPicture,
+  isSound
+} = useMediaKind(extension)
+const isOtherFile = computed(() => !!currentPreview.value && isFile.value)
 
 const downloadUrl = computed(() => {
   if (!currentPreview.value) return ''
@@ -738,7 +724,7 @@ const onFrameUpdate = rawFrameNumber => {
     playlistFrameData.value.startDurationByIndex[playingEntityIndex.value]
   if (typeof startDuration === 'number' && playlistDuration.value > 0) {
     currentPlaylistProgress.value =
-      startDuration + frameNumber / (fps.value || 25)
+      startDuration + frameNumber / (fps.value || DEFAULT_FPS)
   }
 }
 
@@ -752,7 +738,10 @@ const onProgressPlaylistChanged = frameNumber => {
   const position = playlistShotPosition.value[frameNumber]
   if (!position) return
   const { index, start } = position
-  const localFrame = Math.round(frameNumber - start * fps.value)
+  // start carries the strip's +1 slot convention ((firstGlobalFrame + 1)
+  // / fps): compensate like the studio player, or every strip click
+  // seeks one frame early.
+  const localFrame = Math.round(frameNumber - start * fps.value) + 1
   if (index !== playingEntityIndex.value) {
     selectEntity(index)
     nextTick(() => rawPlayer.value?.setCurrentFrame(Math.max(localFrame, 0)))
@@ -763,6 +752,12 @@ const onProgressPlaylistChanged = frameNumber => {
 
 const onPlayNext = () => {
   if (!isPlaying.value) return
+  // Repeat loops the current movie like the studio player; without this
+  // the toggle did nothing (the viewer's own trim loop is inactive here).
+  if (isRepeating.value && isMovie.value) {
+    rawPlayer.value?.playNext()
+    return
+  }
   // Step through sub-previews first, then the next entity (handles images
   // too, which MultiVideoViewer's own playNext would skip).
   advancePlaylist()

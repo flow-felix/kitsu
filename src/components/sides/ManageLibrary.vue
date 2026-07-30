@@ -8,16 +8,23 @@
           :is-loading="loading"
           :is-error="error"
           :text="
-            $tc('library.remove_selected_assets', selectedEntities.length, {
+            $t('library.remove_selected_assets', selectedEntities.length, {
               nbSelectedAssets: selectedEntities.length
             })
           "
           @confirm="removeSharedEntities(selectedEntities)"
         />
         <div class="has-text-centered pa1">
-          <a @click="clearSelectedAssets()">{{ $t('main.clear_selection') }}</a>
+          <a
+            role="button"
+            tabindex="0"
+            @click="clearSelectedAssets()"
+            @keydown.enter.prevent="clearSelectedAssets()"
+            @keydown.space.prevent="clearSelectedAssets()"
+            >{{ $t('main.clear_selection') }}</a
+          >
         </div>
-        <!--h1 class="title mt05">{{ $tc('tasks.selected_entities') }}</h1>
+        <!--h1 class="title mt05">{{ $t('tasks.selected_entities') }}</h1>
         <div class="pa2 mt1">
           <div
             class="entity-line"
@@ -93,7 +100,11 @@
               >
                 <td
                   class="datatable-row-header pointer"
+                  role="button"
+                  tabindex="0"
                   @click="toggleEntity(entity)"
+                  @keydown.enter.prevent="toggleEntity(entity)"
+                  @keydown.space.prevent="toggleEntity(entity)"
                 >
                   <div class="flexrow">
                     <input

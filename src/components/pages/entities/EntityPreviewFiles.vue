@@ -132,7 +132,7 @@ import { DownloadIcon } from 'lucide-vue-next'
 import { mapGetters, mapActions } from 'vuex'
 
 import { renderFileSize } from '@/lib/render'
-import { formatDate } from '@/lib/time'
+import { formatDate as formatDateBase } from '@/lib/time'
 import preferences from '@/lib/preferences'
 import { getTaskTypePriorityOfProd } from '@/lib/productions'
 
@@ -184,20 +184,24 @@ export default {
   computed: {
     ...mapGetters([
       'currentProduction',
+      'dateFormat',
       'isCurrentUserArtist',
       'personMap',
       'taskMap',
-      'taskTypeMap'
+      'taskTypeMap',
+      'use12HourClock'
     ]),
 
     taskTypePreviewFileGroups() {
       const taskTypePreviewFiles = new Map()
       this.previewFiles.forEach(previewFile => {
         const taskType = this.getTaskType(previewFile)
-        if (!taskTypePreviewFiles.has(taskType.id)) {
-          taskTypePreviewFiles.set(taskType.id, [])
+        if (taskType) {
+          if (!taskTypePreviewFiles.has(taskType.id)) {
+            taskTypePreviewFiles.set(taskType.id, [])
+          }
+          taskTypePreviewFiles.get(taskType.id).push(previewFile)
         }
-        taskTypePreviewFiles.get(taskType.id).push(previewFile)
       })
       return Array.from(taskTypePreviewFiles.keys())
         .sort((a, b) => {
@@ -224,7 +228,7 @@ export default {
 
     getTaskType(previewFile) {
       const task = this.taskMap.get(previewFile.task_id)
-      return this.taskTypeMap.get(task.task_type_id)
+      return task && this.taskTypeMap.get(task.task_type_id)
     },
 
     getDownloadPath(previewFileId) {
@@ -239,7 +243,9 @@ export default {
 
     renderFileSize,
 
-    formatDate,
+    formatDate(date) {
+      return formatDateBase(date, this.dateFormat, this.use12HourClock)
+    },
 
     reset() {
       this.isLoading = true

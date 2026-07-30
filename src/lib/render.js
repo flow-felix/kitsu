@@ -19,19 +19,29 @@ export const sanitize = (html, options) => {
     allowedImageTag: true,
     ...options
   }
-  let allowedTags = [...sanitizeHTML.defaults.allowedTags]
+  // Allow <del>, which marked emits for ~~strikethrough~~.
+  let allowedTags = [...sanitizeHTML.defaults.allowedTags, 'del']
   if (!options.allowedLinkTag) {
     allowedTags = allowedTags.filter(tag => tag !== 'a')
   }
   if (options.allowedImageTag) {
     allowedTags.push('img')
   }
+  const allowedAttributes = {
+    a: ['class', 'href'],
+    img: ['src', 'alt', 'title'],
+    td: ['align'],
+    th: ['align']
+  }
+  // GFM task-list checkboxes are inert disabled inputs; allow them where a
+  // full document is rendered (file preview) so done/todo state survives.
+  if (options.allowChecklist) {
+    allowedTags.push('input')
+    allowedAttributes.input = ['type', 'checked', 'disabled']
+  }
   return sanitizeHTML(html, {
     allowedTags,
-    allowedAttributes: {
-      a: ['class', 'href'],
-      img: ['src']
-    }
+    allowedAttributes
   })
 }
 
@@ -60,17 +70,23 @@ export const renderComment = (
     for (const personId of mentions) {
       const person = personMap.get(personId)
       if (!person) continue
+      const fullName = encodeHtmlEntities(person.full_name)
       replacements.set(
-        `@${person.full_name}`,
-        `<a class="mention" href="/people/${person.id}">@${person.full_name}</a>`
+        `@${fullName}`,
+        `<a class="mention" href="/people/${person.id}">@${fullName}</a>`
       )
     }
+  }
+
+  if (departmentMentions) {
     for (const departmentId of departmentMentions) {
       const department = departmentMap.get(departmentId)
       if (!department) continue
+      const departmentName = encodeHtmlEntities(department.name)
+      const departmentColor = encodeHtmlEntities(department.color)
       replacements.set(
-        `@${department.name}`,
-        `<span style="color: ${department.color}">@${department.name}</span>`
+        `@${departmentName}`,
+        `<span style="color: ${departmentColor}">@${departmentName}</span>`
       )
     }
   }
@@ -78,10 +94,10 @@ export const renderComment = (
   if (taskTypes) {
     taskTypes.forEach(taskType => {
       const task_name = encodeHtmlEntities(taskType.name)
-      if (taskType.url) {
+      if (taskType.url && isSafeHref(taskType.url)) {
         replacements.set(
           `#${task_name}`,
-          `<a class="mention mention-task" href="${taskType.url}">#${task_name}</a>`
+          `<a class="mention mention-task" href="${encodeHtmlEntities(taskType.url)}">#${task_name}</a>`
         )
       }
     })
@@ -138,13 +154,17 @@ const encodeHtmlEntities = str => {
         '"': '&quot;'
       })[tag]
   )
-
-  // // -- more complex version if needed --
-  // var el = document.createElement("div");
-  // el.innerText = el.textContent = str;
-  // str = el.innerHTML;
-  // return str;
 }
+
+// Allow relative URLs and http(s) only; block javascript:, data:, vbscript:…
+const isSafeHref = url => {
+  const scheme = /^\s*([a-z][a-z0-9+.-]*):/i.exec(url)
+  return !scheme || ['http', 'https'].includes(scheme[1].toLowerCase())
+}
+
+// For :href bindings on user-provided URLs: null when the scheme is unsafe
+// (Vue drops the attribute entirely on null).
+export const safeUrl = url => (url && isSafeHref(url) ? url : null)
 
 export const replaceTimeWithTimecode = (
   comment,

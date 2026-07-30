@@ -2,7 +2,11 @@
   <div class="search-queries">
     <span
       class="tag folder mr1"
+      role="button"
+      tabindex="0"
       @click="editGroup()"
+      @keydown.enter.prevent="editGroup()"
+      @keydown.space.prevent="editGroup()"
       :title="$t('main.filter_group_add')"
       v-if="isGroupEnabled"
     >
@@ -13,7 +17,11 @@
       :class="{
         active: isEditing
       }"
+      role="button"
+      tabindex="0"
       @click="isEditing = !isEditing"
+      @keydown.enter.prevent="isEditing = !isEditing"
+      @keydown.space.prevent="isEditing = !isEditing"
       :title="$t('main.edit_mode_on')"
       v-if="
         userFilters.length > 0 ||
@@ -34,14 +42,18 @@
         :style="{
           backgroundColor: `${group.color}23`
         }"
+        role="button"
+        tabindex="0"
         @click="toggleFilterGroup(group)"
+        @keydown.enter.prevent="toggleFilterGroup(group)"
+        @keydown.space.prevent="toggleFilterGroup(group)"
         v-for="group in userFilterGroups"
       >
         <div class="group-header">
           <span
             class="dot"
-            :style="{ borderColor: getDepartment(group).color }"
-            :title="getDepartment(group).name"
+            :style="{ borderColor: getDepartment(group)?.color }"
+            :title="getDepartment(group)?.name"
             v-if="group.is_shared && group.department_id"
           ></span>
           <span>{{ group.name }}</span>
@@ -138,8 +150,8 @@
       >
         <span
           class="dot"
-          :style="{ borderColor: getDepartment(searchQuery).color }"
-          :title="getDepartment(searchQuery).name"
+          :style="{ borderColor: getDepartment(searchQuery)?.color }"
+          :title="getDepartment(searchQuery)?.name"
           v-if="searchQuery.is_shared && searchQuery.department_id"
         ></span>
         {{ searchQuery.name }}

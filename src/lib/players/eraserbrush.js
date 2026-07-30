@@ -12,15 +12,42 @@ import {
 // Signature of an "empty" SVG path produced by convertPointsToSVGPath when the
 // gesture is degenerate (a single point). Matches fabric's own internal check.
 const EMPTY_SVG_PATH = 'M 0 0 Q 0 0 0 0 L 0 0'
+const MIN_VISIBLE_ALPHA = 16
+
+export function hasVisiblePixels(obj) {
+  if (!obj.toCanvasElement) return true
+  try {
+    const canvas = obj.toCanvasElement({
+      enableRetinaScaling: false,
+      withoutShadow: true
+    })
+    const context = canvas.getContext('2d')
+    if (!context) return true
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
+    for (let index = 3; index < pixels.length; index += 4) {
+      if (pixels[index] > MIN_VISIBLE_ALPHA) return true
+    }
+    return false
+  } catch {
+    return true
+  }
+}
+
+// Mask paths live in the erased object's local frame and must never be
+// repositioned by group layout.
+class NoLayout extends FixedLayout {
+  shouldPerformLayout() {
+    return false
+  }
+}
 
 // An object's eraser: a group of paths in the object's LOCAL coordinates.
-// FixedLayout + center origin: its dimensions don't change when paths are
-// added; they're realigned onto the object by `_drawClipPath`.
+// NoLayout + center origin keeps paths fixed; the mask is realigned onto the
+// object by `_drawClipPath`.
 export class Eraser extends Group {
   // In v6, Group no longer takes an `objectsRelativeToGroup` third argument.
-  // The fixed-layout intent (no recompute on add) is achieved via
-  // `layoutManager: new LayoutManager(new FixedLayout())`. Children passed to
-  // fromObject() are already in group-local coords; FixedLayout preserves them.
+  // FixedLayout still recenters children during initialization, so disable
+  // layout entirely to preserve paths already stored in the object's frame.
   constructor(objects = [], options = {}) {
     // Drop a serialized `type`: passing it through super()/setOptions hits v6's
     // deprecated no-op type setter, which warns on every revival. The static
@@ -31,10 +58,10 @@ export class Eraser extends Group {
       originX: 'center',
       originY: 'center',
       ...opts,
-      // Always build a fresh FixedLayout: a serialized eraser carries a plain
+      // Always build a fresh layout manager: a serialized eraser carries a plain
       // layoutManager (no performLayout()), and spreading it over ours crashed
       // groupInit. Ours must win, so it comes AFTER ...options.
-      layoutManager: new LayoutManager(new FixedLayout())
+      layoutManager: new LayoutManager(new NoLayout())
     })
     // No instance `this.type =` : v6's type setter is a no-op that logs a
     // deprecation warning; the static `Eraser.type` governs serialization.
@@ -51,10 +78,14 @@ export class Eraser extends Group {
   }
 
   // Revival: the children are ALWAYS plain Paths (the eraser only ever adds
-  // Paths), so we rebuild them directly. FixedLayout keeps them where they
-  // are (group-local coords) without recomputing the centre.
+  // Paths), so we rebuild them directly. NoLayout keeps their stored coords.
   static fromObject(object) {
-    const children = (object.objects || []).map(p => {
+    // Nothing sanitizes a stored mask before it gets here, and a malformed one
+    // used to throw and leave the object carrying its unrevived mask for good.
+    const serialized = Array.isArray(object.objects)
+      ? object.objects.filter(Boolean)
+      : []
+    const children = serialized.map(p => {
       // Drop the serialized `type` ('path'): passing it to the Path ctor hits
       // v6's no-op type setter and logs a deprecation warning per child.
       const opts = { ...p }
@@ -91,6 +122,22 @@ export async function reviveObjectEraser(target, serialized) {
   return target
 }
 
+// Serializes an object's eraser mask.
+//
+// A cloned or freshly deserialized object can carry the PLAIN serialized mask
+// instead of a revived Eraser: the `fromObject` overrides that bypass fabric's
+// generic revival (psbrush's PSStroke, our Arrow) spread the whole serialized
+// object onto the new instance, mask included. That form is already the
+// persisted shape, so emit it rather than crashing on the missing toObject().
+//
+// The copy is not optional: normalizeSerializedType() rewrites the emitted
+// subtree in place and the same payload is pushed into the additions/updates
+// stacks, so handing out the live object's own mask would let a save mutate it.
+export const serializeEraserMask = (eraser, propertiesToInclude) =>
+  typeof eraser.toObject === 'function'
+    ? eraser.toObject(propertiesToInclude)
+    : structuredClone(eraser)
+
 let eraserSupportInstalled = false
 
 // Patches FabricObject.prototype to support the `eraser` mask.
@@ -101,6 +148,7 @@ export function installEraserObjectSupport() {
 
   const proto = FabricObject.prototype
   const baseDrawClipPath = proto._drawClipPath
+  const baseGetCacheCanvasDimensions = proto._getCacheCanvasDimensions
   const baseNeedsCache = proto.needsItsOwnCache
   const baseToObject = proto.toObject
 
@@ -119,6 +167,27 @@ export function installEraserObjectSupport() {
 
     needsItsOwnCache() {
       return baseNeedsCache.call(this) || !!this.eraser
+    },
+
+    // Destination-out masks leave visible fragments when Fabric rasterizes the
+    // object cache below 1x. Keep erased-object caches at authored resolution;
+    // Fabric scales the finished cache down when drawing it on the canvas.
+    _getCacheCanvasDimensions() {
+      const dimensions = baseGetCacheCanvasDimensions.call(this)
+      if (!this.eraser) return dimensions
+      if (dimensions.zoomX < 1) {
+        const padding = dimensions.width - Math.ceil(dimensions.x)
+        dimensions.x /= dimensions.zoomX
+        dimensions.width = Math.ceil(dimensions.x) + padding
+        dimensions.zoomX = 1
+      }
+      if (dimensions.zoomY < 1) {
+        const padding = dimensions.height - Math.ceil(dimensions.y)
+        dimensions.y /= dimensions.zoomY
+        dimensions.height = Math.ceil(dimensions.y) + padding
+        dimensions.zoomY = 1
+      }
+      return dimensions
     },
 
     // Draws the normal clipPath THEN the eraser as a second clip-mask: that's
@@ -145,7 +214,7 @@ export function installEraserObjectSupport() {
         ['erasable'].concat(propertiesToInclude || [])
       )
       if (this.eraser && !this.eraser.excludeFromExport) {
-        object.eraser = this.eraser.toObject(propertiesToInclude)
+        object.eraser = serializeEraserMask(this.eraser, propertiesToInclude)
       }
       return object
     }
@@ -191,10 +260,15 @@ export class EraserBrush extends PencilBrush {
   // erased as a single unit, its mask lives on the group.)
   async _addPathToObjectEraser(obj, path, context) {
     let eraser = obj.eraser
-    if (!eraser) {
-      eraser = new Eraser()
-      obj.eraser = eraser
+    // The object may still carry the plain serialized mask rather than a
+    // revived Eraser (see serializeEraserMask); add() would throw on it, and
+    // the throw escapes onMouseUp's net because fabric does not await
+    // _finalizeAndAddPath, cancelling erasing:end for every other target.
+    if (eraser && typeof eraser.add !== 'function') {
+      eraser = await Eraser.fromObject(eraser)
     }
+    if (!eraser) eraser = new Eraser()
+    obj.eraser = eraser
     const clone = await path.clone()
     const desiredTransform = util.multiplyTransformMatrices(
       util.invertTransform(obj.calcTransformMatrix()),

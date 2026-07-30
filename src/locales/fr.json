@@ -115,7 +115,7 @@
         "task_status": "Statut de tâches",
         "person": "Nom de la personne",
         "checklist": "Checklist",
-        "acknowledgements": "Remerciements",
+        "acknowledgements": "Approbations",
         "revision": "Révision",
         "attachments": "Pièces jointes"
       },
@@ -123,6 +123,7 @@
       "attachments": "Pièces jointes",
       "attachments_to_add": "Fichier à attacher",
       "max_retakes_error": "Vous ne pouvez plus faire de retakes sur cette tâche.",
+      "unknown_status_error": "Le statut de tâche sélectionné n'est plus disponible. Veuillez recharger la page et réessayer.",
       "previews": "Fichiers à publier comme une nouvelle version",
       "selected_files": "Fichiers sélectionnés",
       "no_attachments": "Il n'y a pas de pièces jointes pour ce commentaire.",
@@ -153,7 +154,10 @@
         "mute": "Couper le son",
         "unmute": "Rétablir le son",
         "fullscreen": "Plein écran",
-        "download": "Télécharger"
+        "download": "Télécharger",
+        "video_unavailable": "Vidéo indisponible",
+        "audio_unavailable": "Audio indisponible",
+        "image_unavailable": "Image indisponible"
       }
     },
     "custom_actions": {
@@ -321,6 +325,7 @@
       "next_annotation": "Annotation suivante",
       "next_frame": "Image suivante",
       "pan_image": "Déplacer l'image",
+      "zoom_image": "Zoomer l'image",
       "paste_annotation": "Coller l'annotation",
       "play_pause": "Lecture / pause",
       "play_pause_typing": "Lecture / pause (même en saisissant un commentaire)",
@@ -522,6 +527,7 @@
       "hide_support_chat": "Cacher le support",
       "move_action_bar": "Déplacer le panneau d'actions",
       "show_support_chat": "Montrer le support",
+      "skip_to_content": "Aller au contenu principal",
       "empty_schedule": "Il n'y a pas de tâches ou elles n'ont pas de dates de début.",
       "all_shots": "Tous les plans",
       "department": "Département",
@@ -927,6 +933,10 @@
         "open_link": "Ouvrir le lien",
         "annotation_huge": "Énorme",
         "annotation_shape": "Forme",
+        "annotation_shape_arrow": "Flèche",
+        "annotation_shape_circle": "Cercle",
+        "annotation_shape_rectangle": "Rectangle",
+        "annotation_shape_whiteboard": "Tableau blanc",
         "annotation_tiny": "Minuscule",
         "onion_skin": "Pelure d'oignon",
         "onion_skin_off": "Désactivée"
@@ -1029,6 +1039,7 @@
         "add_new_values": "Il n'y a pour le moment aucune valeur enregistrée.",
         "available_values": "Valeurs disponibles",
         "choices": "Liste de valeurs",
+        "delete_task_text": "Êtes-vous sûr de vouloir supprimer cette colonne et les données associées pour toutes les tâches de ce type de tâche ?",
         "delete_text": "Êtes-vous sûr de vouloir supprimer cette colonne et toutes les données liées ?",
         "delete_list_column_text": "Cela retirera la colonne « {name} » de tous les projets, y compris les valeurs enregistrées. Continuer ?",
         "delete_error": "Une erreur est survenue en supprimant une colonne de métadonnées.",
@@ -1039,6 +1050,10 @@
         "boolean": "Choix vrai/faux",
         "number": "Nombre",
         "string": "Texte",
+        "date": "Date",
+        "url": "Lien",
+        "textarea": "Texte long",
+        "person": "Personne",
         "tags": "Liste des étiquettes",
         "applies_to_all_projects": "Cette colonne est ajoutée à tous les projets de la liste. Chaque projet peut avoir sa propre valeur dans la vue en liste.",
         "target_project": "Projet"
@@ -1515,6 +1530,8 @@
       "comment_image": "Joindre des fichiers",
       "create_for_selection": "Créer une tâche pour chaque cellule vide",
       "create_tasks": "Ajouter des tâches",
+      "create_tasks_all_missing": "Ajouter toutes les manquantes ({count})",
+      "create_tasks_all_missing_empty": "Ajouter toutes les manquantes",
       "create_tasks_shot": "Ajouter des tâches pour les plans affichés",
       "create_tasks_shot_explanation": "Vous êtes sur le point de créer une nouvelle tâche pour chaque plan du projet en cours pour le type de tâche donné. Voulez-vous continuer ?",
       "create_tasks_shot_failed": "Une erreur serveur est survenue pendant la création des tâches.",
@@ -1611,6 +1628,7 @@
       "assignation_warning": "Attention : vous ne verrez pas le résultat parce que vous cachez les assignations",
       "for_selection": "Pour la liste et les filtres courants",
       "for_project": "Pour le projet",
+      "full_task_type_names": "Afficher les noms complets des types de tâches",
       "all_tasks": "Toutes les tâches",
       "due_this_week": "Tâches dues cette semaine",
       "select_file": "Veuillez sélectionner le fichier de votre disque dur que vous souhaitez joindre à votre commentaire ou message :",
@@ -1697,6 +1715,7 @@
       "hours": "heures",
       "month": "Mois",
       "time_spents": "Temps passé (heures)",
+      "timelog_title": "Timelog",
       "title": "Feuille de temps",
       "year": "Année",
       "confirm_day_off": "Le fait de définir ce jour comme un jour de congé effacera tout le temps enregistré pour le jour en cours. Êtes-vous sûr de vouloir continuer ?",
@@ -1933,15 +1952,10 @@
       "drop_new_concepts": "Déposez ici de nouveaux fichiers de concepts"
     },
     "intro": {
+      "join_discord": "Rejoignez le Discord de la communauté",
+      "join_partner": "Rejoignez notre programme partenaire",
       "main": "Pour que notre projet prospère, nous avons besoin de votre soutien. Voici quelques moyens simples de nous aider :",
-      "first": "Ajoutez une étoile à notre dépôt sur ",
-      "second": "Suivez-nous sur ",
-      "third": "Rejoignez notre",
-      "four": "Proposer de nouvelles fonctionnalités sur ",
-      "five": "Faites un don à notre ",
-      "six": "Découvrez nos solutions clouds et sur site ",
-      "seven": "Partagez Kitsu avec vos amis et collègues",
-      "eight": "Merci pour votre aide !",
+      "star_github": "Ajoutez une étoile à notre dépôt GitHub",
       "title": "Comment soutenir Kitsu"
     },
     "my_checks": {

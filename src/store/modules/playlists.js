@@ -202,6 +202,15 @@ const actions = {
     return playlist
   },
 
+  async addEntitiesToPlaylist({ commit }, { playlist, entityIds }) {
+    const updatedPlaylist = await playlistsApi.addEntitiesToPlaylist(
+      playlist,
+      entityIds
+    )
+    commit(EDIT_PLAYLIST_END, updatedPlaylist)
+    return updatedPlaylist
+  },
+
   async pushEntityToPlaylist(
     { commit, dispatch },
     { playlist, entity, previewFiles, task, entityMap }
@@ -328,6 +337,22 @@ const actions = {
 
   saveSharedPlaylistAnnotations(_, { shareToken, data }) {
     return playlistsApi.saveSharedPlaylistAnnotations(shareToken, data)
+  },
+
+  loadPlaylistShareLinks(_, playlistId) {
+    return playlistsApi.getShareLinks(playlistId)
+  },
+
+  createPlaylistShareLink(_, { playlistId, data }) {
+    return playlistsApi.createShareLink(playlistId, data)
+  },
+
+  revokePlaylistShareLink(_, { playlistId, token }) {
+    return playlistsApi.revokeShareLink(playlistId, token)
+  },
+
+  sendPlaylistShareInvitations(_, { playlistId, token, data }) {
+    return playlistsApi.sendShareInvitations(playlistId, token, data)
   }
 }
 
@@ -344,7 +369,8 @@ const mutations = {
   [LOAD_PLAYLIST_START](state) {},
 
   [LOAD_PLAYLIST_END](state, playlist) {
-    state.playlistMap.get(playlist.id).build_jobs = playlist.build_jobs
+    const cachedPlaylist = state.playlistMap.get(playlist.id)
+    if (cachedPlaylist) cachedPlaylist.build_jobs = playlist.build_jobs
     state.previewFileMap.clear()
     state.previewFileEntityMap.clear()
     state.playlistEntryMap.clear()

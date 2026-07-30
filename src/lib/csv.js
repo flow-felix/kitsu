@@ -1,5 +1,6 @@
 import Papa from 'papaparse'
 
+import { downloadBlob } from '@/lib/download'
 import { getTaskTypePriorityOfProd } from '@/lib/productions'
 import { getPercentage } from '@/lib/stats'
 import stringHelpers from '@/lib/string'
@@ -11,7 +12,7 @@ import {
 } from '@/lib/time'
 
 const csv = {
-  generateTimesheet(
+  generateTimesheet({
     name,
     timesheet,
     people,
@@ -23,7 +24,7 @@ const csv = {
     year,
     month,
     week
-  ) {
+  }) {
     const headers = csv.getTimesheetHeaders(
       timesheet,
       detailLevel,
@@ -158,7 +159,7 @@ const csv = {
     budgetDepartments.forEach(departmentEntry => {
       const department = departmentMap.get(departmentEntry.id)
       entries.push([
-        department.name,
+        department?.name || '',
         '',
         '',
         departmentEntry.monthly_salary,
@@ -170,10 +171,14 @@ const csv = {
       ])
       departmentEntry.persons.forEach(personEntry => {
         entries.push([
-          `${t('budget.positions.' + personEntry.position)}`,
-          `${t('budget.seniorities.' + personEntry.seniority)}`,
+          personEntry.position
+            ? t('budget.positions.' + personEntry.position)
+            : '',
+          personEntry.seniority
+            ? t('budget.seniorities.' + personEntry.seniority)
+            : '',
           personEntry.person_id
-            ? personMap.get(personEntry.person_id).name
+            ? personMap.get(personEntry.person_id)?.name || ''
             : t('budget.new_hiring'),
           personEntry.monthly_salary,
           personEntry.months_duration,
@@ -192,9 +197,33 @@ const csv = {
     return stringHelpers.slugify(nameData.join('_'))
   },
 
+  /*
+   * Return the display names of the parsed CSV lines that don't match any
+   * existing entity in the given lookup (those lines will be created by the
+   * import instead of updating an existing entity). `indexMatchers` lists
+   * the column indexes used to build the lookup keys.
+   */
+  getNewEntityNames(parsedCsv, indexMatchers, database) {
+    const names = new Map()
+    parsedCsv
+      .slice(1)
+      .filter(line => line.length > 1)
+      .forEach(line => {
+        const values = indexMatchers.map(index => line[index] || '')
+        const key = values.join('')
+        if (key.length > 0 && !database[key] && !names.has(key)) {
+          names.set(key, values.filter(value => value.length > 0).join(' / '))
+        }
+      })
+    return [...names.values()]
+  },
+
   turnEntriesToCsvString(entries, config = {}) {
     return Papa.unparse(entries, {
       delimiter: ';',
+      // Neutralize spreadsheet formula injection: cells starting with
+      // = + - @ are prefixed with ' so Excel/Sheets treat them as text.
+      escapeFormulae: true,
       newline: '\n',
       quotes: true,
       skipEmptyLines: true,
@@ -204,12 +233,10 @@ const csv = {
 
   buildCsvFile(name, entries) {
     const csvContent = csv.turnEntriesToCsvString(entries)
-    const result = `data:text/csv;charset=utf-8,${encodeURIComponent(csvContent)}`
-    const link = document.createElement('a')
-    link.setAttribute('href', result)
-    link.setAttribute('download', `${name}.csv`)
-    document.body.appendChild(link)
-    link.click()
+    downloadBlob(
+      new Blob([csvContent], { type: 'text/csv;charset=utf-8' }),
+      `${name}.csv`
+    )
     return csvContent
   },
 
@@ -244,7 +271,7 @@ const csv = {
     const initialHeaders = ['Name', '', 'All', '']
     return taskTypeIds.reduce((acc, taskTypeId) => {
       if (taskTypeId !== 'all') {
-        const taskTypeName = taskTypeMap.get(taskTypeId).name
+        const taskTypeName = taskTypeMap.get(taskTypeId)?.name || ''
         return acc.concat([taskTypeName, ''])
       } else {
         return acc
@@ -483,9 +510,13 @@ const getStatsTaskTypeIds = (mainStats, taskTypeMap, production) => {
       const taskTypeAPriority = getTaskTypePriorityOfProd(taskTypeA, production)
       const taskTypeBPriority = getTaskTypePriorityOfProd(taskTypeB, production)
       if (taskTypeAPriority === taskTypeBPriority) {
-        return taskTypeA.name.localeCompare(taskTypeB.name, undefined, {
-          numeric: true
-        })
+        return (taskTypeA?.name || '').localeCompare(
+          taskTypeB?.name || '',
+          undefined,
+          {
+            numeric: true
+          }
+        )
       }
       return taskTypeAPriority - taskTypeBPriority
     })

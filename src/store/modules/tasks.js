@@ -194,6 +194,24 @@ const actions = {
     })
   },
 
+  subscribeToTasks({ commit }, taskIds) {
+    if (taskIds.length === 0) return Promise.resolve()
+    return tasksApi.subscribeToTasks(taskIds).then(() => {
+      taskIds.forEach(taskId =>
+        commit(LOAD_TASK_SUBSCRIBE_END, { taskId, subscribed: true })
+      )
+    })
+  },
+
+  unsubscribeFromTasks({ commit }, taskIds) {
+    if (taskIds.length === 0) return Promise.resolve()
+    return tasksApi.unsubscribeFromTasks(taskIds).then(() => {
+      taskIds.forEach(taskId =>
+        commit(LOAD_TASK_SUBSCRIBE_END, { taskId, subscribed: false })
+      )
+    })
+  },
+
   loadTaskComments({ commit, dispatch }, { taskId, entityId }) {
     return tasksApi.getTaskComments(taskId).then(comments => {
       commit(LOAD_TASK_COMMENTS_END, { comments, taskId })
@@ -291,8 +309,9 @@ const actions = {
       }
       entityIdsByTaskType[taskTypeId].push(entityId)
     })
-    return func.runPromiseAsSeries(
-      Object.keys(entityIdsByTaskType).map(taskTypeId => {
+    return func.runPromiseMapAsSeries(
+      Object.keys(entityIdsByTaskType),
+      taskTypeId => {
         const data = {
           task_type_id: taskTypeId,
           type,
@@ -323,18 +342,29 @@ const actions = {
             console.error(err)
             return []
           })
-      })
+      }
     )
   },
 
   async deleteSelectedTasks({ commit, state }) {
-    const selectedTaskIds = Array.from(state.selectedTasks.keys())
-    for (const taskId of selectedTaskIds) {
-      const task = state.taskMap.get(taskId)
-      if (task) {
-        await tasksApi.deleteTask(task)
-        commit(DELETE_TASK_END, task)
+    const selectedTasks = Array.from(state.selectedTasks.keys())
+      .map(taskId => state.taskMap.get(taskId))
+      .filter(task => task)
+    // One batch call per production instead of one request per task.
+    const tasksByProject = new Map()
+    selectedTasks.forEach(task => {
+      if (!tasksByProject.has(task.project_id)) {
+        tasksByProject.set(task.project_id, [])
       }
+      tasksByProject.get(task.project_id).push(task)
+    })
+    for (const tasks of tasksByProject.values()) {
+      await tasksApi.deleteAllTasks(
+        tasks[0].project_id,
+        null,
+        tasks.map(task => task.id)
+      )
+      tasks.forEach(task => commit(DELETE_TASK_END, task))
     }
   },
 
@@ -363,6 +393,23 @@ const actions = {
         taskStatusMap
       })
       return tasks[0]
+    })
+  },
+
+  createEntityTasks({ commit, rootGetters }, { entityId, taskTypeIds }) {
+    const production = rootGetters.currentProduction
+    const taskTypeMap = taskTypeStore.cache.taskTypeMap
+    const taskStatusMap = taskStatusStore.cache.taskStatusMap
+    return tasksApi.createEntityTasks(entityId, taskTypeIds).then(tasks => {
+      tasks.forEach(task => {
+        commit(NEW_TASK_END, {
+          task,
+          production,
+          taskTypeMap,
+          taskStatusMap
+        })
+      })
+      return tasks
     })
   },
 
@@ -398,20 +445,31 @@ const actions = {
   },
 
   async changeSelectedPriorities({ commit, state, rootGetters }, { priority }) {
-    const selectedTaskIds = Array.from(state.selectedTasks.keys())
-    for (const taskId of selectedTaskIds) {
-      const task = state.taskMap.get(taskId)
-      if (task && task.priority !== priority) {
-        const taskType = rootGetters.taskTypeMap.get(task.task_type_id)
-        const updatedTask = await tasksApi.updateTask(taskId, { priority })
-        commit(EDIT_TASK_END, { task: updatedTask, taskType })
-      }
-    }
+    const tasksToUpdate = Array.from(state.selectedTasks.keys())
+      .map(taskId => state.taskMap.get(taskId))
+      .filter(task => task && task.priority !== priority)
+    if (tasksToUpdate.length === 0) return
+    const updatedTasks = await tasksApi.setTasksPriority(
+      tasksToUpdate.map(task => task.id),
+      priority
+    )
+    updatedTasks.forEach(updatedTask => {
+      const taskType = rootGetters.taskTypeMap.get(updatedTask.task_type_id)
+      commit(EDIT_TASK_END, { task: updatedTask, taskType })
+    })
   },
 
-  updateTask({ commit }, { taskId, data }) {
+  updateTask({ commit, state }, { taskId, data }) {
+    const task = state.taskMap.get(taskId)
+    // Capture the overwritten fields so a failed save can be rolled back.
+    const previousData = task
+      ? Object.fromEntries(Object.keys(data).map(key => [key, task[key]]))
+      : null
     commit(EDIT_TASK_DATES, { taskId, data })
-    return tasksApi.updateTask(taskId, data)
+    return tasksApi.updateTask(taskId, data).catch(err => {
+      if (previousData) commit(EDIT_TASK_DATES, { taskId, data: previousData })
+      throw err
+    })
   },
 
   editTaskComment({ commit }, { taskId, comment }) {
@@ -653,6 +711,27 @@ const actions = {
     })
   },
 
+  setTasksMainPreview({ commit, state }, taskIds) {
+    if (taskIds.length === 0) return Promise.resolve()
+    const taskMap = state.taskMap
+    return tasksApi.setTasksMainPreview(taskIds).then(entities => {
+      // The route returns a flat entity list; match each back to its task
+      // through the entity id. Tasks without a preview are skipped server-side.
+      const entityMap = new Map(entities.map(entity => [entity.id, entity]))
+      taskIds.forEach(taskId => {
+        const entity = entityMap.get(taskMap.get(taskId)?.entity?.id)
+        if (entity) {
+          commit(SET_PREVIEW, {
+            taskId,
+            entityId: entity.id,
+            previewId: entity.preview_file_id,
+            taskMap
+          })
+        }
+      })
+    })
+  },
+
   updatePreviewAnnotation(
     { commit },
     { taskId, preview, additions, deletions, updates }
@@ -681,6 +760,27 @@ const actions = {
         })
         throw err
       })
+  },
+
+  // Single entry point for pushing a preview's annotations into the store.
+  // `extraPreviews` carries store copies that mirror the main preview
+  // (playlist revision copies) and must receive the same annotations.
+  updatePreviewAnnotations(
+    { commit },
+    { preview, annotations, extraPreviews = [] }
+  ) {
+    commit(UPDATE_PREVIEW_ANNOTATION, {
+      taskId: preview.task_id,
+      preview,
+      annotations
+    })
+    extraPreviews.forEach(({ taskId, preview: extraPreview }) => {
+      commit(UPDATE_PREVIEW_ANNOTATION, {
+        taskId,
+        preview: extraPreview,
+        annotations
+      })
+    })
   },
 
   refreshPreview({ commit }, { taskId, previewId }) {
@@ -720,11 +820,21 @@ const actions = {
     })
   },
 
-  unassignPersonFromTask({ commit }, { task, person }) {
+  unassignPersonFromTask({ dispatch }, { task, person }) {
+    return dispatch('unassignPersonFromTasks', { tasks: [task], person })
+  },
+
+  unassignPersonFromTasks({ commit }, { tasks, person }) {
+    if (tasks.length === 0) return Promise.resolve()
     return tasksApi
-      .unassignPersonFromTask(task.id, person.id)
+      .unassignPersonFromTasks(
+        tasks.map(task => task.id),
+        person.id
+      )
       .then(() => {
-        commit(UNASSIGN_TASK, { task, person })
+        tasks.forEach(task => {
+          commit(UNASSIGN_TASK, { task, person })
+        })
       })
       .catch(console.error)
   },
@@ -804,7 +914,11 @@ const actions = {
   ackComment({ commit, rootGetters }, comment) {
     const user = rootGetters.user
     commit(ACK_COMMENT, { comment, user })
-    return tasksApi.ackComment(comment)
+    return tasksApi.ackComment(comment).catch(err => {
+      // ACK_COMMENT toggles: re-committing restores the previous state.
+      commit(ACK_COMMENT, { comment, user })
+      throw err
+    })
   },
 
   async replyToComment({ commit }, { comment, text, attachments }) {
@@ -1264,7 +1378,13 @@ const mutations = {
   [EDIT_TASK_DATES](state, { taskId, data }) {
     const task = state.taskMap.get(taskId)
     if (task) {
-      Object.assign(task, data)
+      const { data: metadata, ...taskFields } = data
+      Object.assign(task, taskFields)
+      // Mirror the server-side merge of the metadata bag instead of
+      // replacing it wholesale.
+      if (metadata) {
+        task.data = { ...(task.data || {}), ...metadata }
+      }
     }
   },
 
@@ -1489,7 +1609,9 @@ const mutations = {
   },
 
   [SET_TASK_EXTRA_DATA](state, { task, data }) {
-    task.data = data
+    // Linked entity metadata lands in entity_data: task.data holds the
+    // task's own metadata and must not be shadowed by the entity's.
+    task.entity_data = data
   },
 
   [RESET_ALL](state) {

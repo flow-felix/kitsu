@@ -11,6 +11,7 @@ import { useStore } from 'vuex'
 
 import {
   formatDate,
+  formatDisplayDate as libFormatDisplayDate,
   formatDuration as libFormatDuration,
   formatFullDate,
   formatSimpleDate
@@ -27,13 +28,21 @@ export const formatPrioritySymbol = priority => {
   return '!'.repeat(clamped)
 }
 
+// Number-typed TextFields emit valueAsNumber, so both sanitizers must
+// accept numbers as well as user-typed strings.
 export const sanitizeInteger = value => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? Math.trunc(value) : 0
+  }
   if (typeof value !== 'string') return 0
   const digits = value.replace(/\D/g, '')
   return digits.length > 0 ? parseInt(digits) || 0 : 0
 }
 
 export const sanitizeIntegerLight = value => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? Math.trunc(value) : null
+  }
   if (typeof value !== 'string') return null
   const digits = value.replace(/\D/g, '')
   return digits.length > 0 ? parseInt(digits) || null : null
@@ -48,7 +57,11 @@ export const useFormat = () => {
     () => organisation.value.format_duration_in_hours
   )
 
+  const dateFormat = computed(() => store.getters.dateFormat)
+
   const formatBoolean = value => (value ? t('main.yes') : t('main.no'))
+
+  const formatDisplayDate = date => libFormatDisplayDate(date, dateFormat.value)
 
   const formatDuration = (minutes, toLocale = true) =>
     libFormatDuration(organisation.value, minutes, toLocale)
@@ -64,8 +77,10 @@ export const useFormat = () => {
   return {
     organisation,
     isDurationInHours,
+    dateFormat,
     formatBoolean,
     formatDate,
+    formatDisplayDate,
     formatFullDate,
     formatSimpleDate,
     formatDuration,

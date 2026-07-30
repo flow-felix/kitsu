@@ -63,11 +63,30 @@ export const usePlaylistComparison = ({
     const files = entity?.preview_files?.[base.taskTypeId.value]
     if (!files) return []
     const revisions = files.map(p => p.revision).sort((a, b) => b - a)
+    const options = [{ label: 'Last', value: null }]
+    // "Previous" only makes sense when there is a revision before the last.
+    if (revisions.length > 1) {
+      options.push({ label: 'Previous', value: 'previous' })
+    }
     return [
-      { label: 'Last', value: null },
+      ...options,
       ...revisions.map(r => ({ label: `v${r}`, value: `${r}` }))
     ]
   })
+
+  // Resolves the preview file a compared revision points to. "previous"
+  // is last - 1: the revision just before the latest one. Any other
+  // value falls back to the existing match-or-first behaviour (Last / vN).
+  const pickComparisonPreview = files => {
+    if (!files || files.length === 0) return null
+    if (revisionToCompare.value === 'previous') {
+      const sorted = [...files].sort((a, b) => b.revision - a.revision)
+      return sorted[1] || sorted[0]
+    }
+    return (
+      files.find(p => `${p.revision}` === revisionToCompare.value) || files[0]
+    )
+  }
   const entityListToCompare = computed(() => {
     if (!base.taskTypeId.value) return []
     return entityList.value.map(entity => {
@@ -81,9 +100,7 @@ export const usePlaylistComparison = ({
         key = Object.keys(previewFiles)[0]
         files = previewFiles[key]
       }
-      const preview =
-        files?.find(p => `${p.revision}` === revisionToCompare.value) ||
-        files?.[0]
+      const preview = pickComparisonPreview(files)
       if (!preview) {
         return { preview_file_id: '', preview_file_extension: 'none' }
       }
@@ -98,8 +115,7 @@ export const usePlaylistComparison = ({
     const entity = currentEntity.value
     const files = entity?.preview_files?.[base.taskTypeId.value]
     if (!files || files.length === 0) return null
-    const match = files.find(p => `${p.revision}` === revisionToCompare.value)
-    return match || files[0]
+    return pickComparisonPreview(files)
   })
 
   const currentPreviewToCompare = computed(() => {
@@ -125,6 +141,18 @@ export const usePlaylistComparison = ({
       ? currentRevisionToCompare.value.annotations || []
       : []
   )
+
+  // When the compared revision changes, a picture index picked on the
+  // previous revision can point past the new one's sub-previews, which
+  // blanks the comparison pane. Reset to the main picture in that case.
+  const clampComparisonPreviewIndex = () => {
+    if (
+      currentComparisonPreviewIndex.value >=
+      currentComparisonPreviewLength.value
+    ) {
+      currentComparisonPreviewIndex.value = 0
+    }
+  }
 
   const goToPreviousComparisonPicture = () => {
     const index = currentComparisonPreviewIndex.value - 1
@@ -154,21 +182,22 @@ export const usePlaylistComparison = ({
     revisionToCompare.value = null
   }
 
-  // Playlist's overlayOpacity is inverted at the extremes vs. the generic
-  // one in useComparison: in PlaylistPlayer the value is applied to the
-  // main player (0% overlay = main fully visible, 100% = main hidden),
-  // whereas useComparison's table is sized for the comparison overlay.
+  // Playlist's overlayOpacity is inverted vs. the generic one in
+  // useComparison: in PlaylistPlayer the value is applied to the MAIN
+  // player (painted on top), so compared-clip visibility is 1 - opacity.
+  // Every step must be inverted, not only the extremes, or "Overlay 25%"
+  // shows more of the compared clip than "Overlay 75%".
   const overlayOpacity = computed(() => {
     if (!base.isComparing.value || !base.isComparisonOverlay.value) return 1
     switch (base.comparisonMode.value) {
       case 'overlay0':
         return 1
       case 'overlay25':
-        return 0.25
+        return 0.75
       case 'overlay50':
         return 0.5
       case 'overlay75':
-        return 0.75
+        return 0.25
       case 'overlay100':
         return 0
       default:
@@ -188,6 +217,7 @@ export const usePlaylistComparison = ({
 
     // Playlist-specific actions
     toggleComparison,
+    clampComparisonPreviewIndex,
     goToPreviousComparisonPicture,
     goToNextComparisonPicture,
 

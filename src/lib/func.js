@@ -5,12 +5,6 @@ export default {
     }, Promise.resolve())
   },
 
-  runPromiseAsSeries(promises) {
-    return promises.reduce((accumulatorPromise, promise) => {
-      return accumulatorPromise.then(() => promise)
-    }, Promise.resolve())
-  },
-
   throttle(fn, delay) {
     let lastCall = 0
     return function (...args) {
@@ -18,6 +12,14 @@ export default {
       if (now - lastCall < delay) return
       lastCall = now
       return fn(...args)
+    }
+  },
+
+  debounce(fn, delay) {
+    let timeout = null
+    return function (...args) {
+      clearTimeout(timeout)
+      timeout = setTimeout(() => fn.apply(this, args), delay)
     }
   }
 }

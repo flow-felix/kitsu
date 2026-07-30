@@ -25,7 +25,17 @@
         @toggle-stick="metadataStickColumnClicked($event)"
       />
 
-      <table class="datatable multi-section">
+      <table-metadata-header-menu
+        ref="headerFieldMenu"
+        :is-edit-allowed="false"
+        :show-stick="false"
+        @sort-by-clicked="onSortByFieldClicked()"
+      />
+
+      <table
+        class="datatable multi-section"
+        :class="{ 'expand-task-types': displaySettings.fullTaskTypeNames }"
+      >
         <thead class="datatable-head" id="datatable-shot" v-columns-resizable>
           <tr>
             <th
@@ -33,21 +43,24 @@
               class="name shot-name datatable-row-header"
               ref="th-shot"
             >
-              <div class="flexrow">
-                <span class="flexrow-item">
-                  {{ $t('shots.fields.name') }}
-                </span>
-                <button-simple
-                  class="is-small flexrow"
-                  icon="plus"
-                  :text="''"
-                  @click="onAddMetadataClicked"
-                  v-if="
-                    (isCurrentUserManager || isCurrentUserSupervisor) &&
-                    !isLoading
-                  "
-                />
-              </div>
+              <sortable-field-header
+                field-name="name"
+                :label="$t('shots.fields.name')"
+                @show-menu="showFieldHeaderMenu"
+              >
+                <template #actions>
+                  <button-simple
+                    class="is-small flexrow"
+                    icon="plus"
+                    :text="''"
+                    @click="onAddMetadataClicked"
+                    v-if="
+                      (isCurrentUserManager || isCurrentUserSupervisor) &&
+                      !isLoading
+                    "
+                  />
+                </template>
+              </sortable-field-header>
             </th>
 
             <metadata-header
@@ -70,7 +83,7 @@
                 :key="columnId"
                 :hidden-columns="hiddenColumns"
                 :column-id="columnId"
-                :title="taskTypeMap.get(columnId).name"
+                :title="taskTypeMap.get(columnId)?.name"
                 :validation-style="getValidationStyle(columnId)"
                 :left="
                   offsets['validation-' + columnIndexInGrid]
@@ -97,7 +110,11 @@
                 isShotDescription
               "
             >
-              {{ $t('shots.fields.description') }}
+              <sortable-field-header
+                field-name="description"
+                :label="$t('shots.fields.description')"
+                @show-menu="showFieldHeaderMenu"
+              />
             </th>
 
             <th
@@ -290,7 +307,12 @@
               <th scope="rowgroup">
                 <div
                   class="datatable-row-header pointer"
+                  role="button"
+                  tabindex="0"
                   @click="$emit('sequence-clicked', group[0].sequence_name)"
+                  @keydown.enter.prevent="
+                    $emit('sequence-clicked', group[0].sequence_name)
+                  "
                 >
                   {{ group[0] ? group[0].sequence_name : '' }}
                 </div>
@@ -756,7 +778,7 @@
       v-if="isEmptyList && !isCurrentUserClient && !isLoading"
     >
       <p class="info">
-        <img src="../../assets/illustrations/empty_shot.png" />
+        <img src="../../assets/illustrations/empty_shot.png" alt="" />
       </p>
       <p class="info">{{ $t('shots.empty_list') }}</p>
       <button-simple
@@ -770,32 +792,32 @@
       v-if="isEmptyList && isCurrentUserClient && !isLoading"
     >
       <p class="info">
-        <img src="../../assets/illustrations/empty_shot.png" />
+        <img src="../../assets/illustrations/empty_shot.png" alt="" />
       </p>
       <p class="info">{{ $t('shots.empty_list_client') }}</p>
     </div>
 
     <p class="has-text-centered nb-shots" v-if="!isEmptyList && !isLoading">
-      {{ displayedShotsLength }} {{ $tc('shots.number', displayedShotsLength) }}
+      {{ displayedShotsLength }} {{ $t('shots.number', displayedShotsLength) }}
       <span v-if="displayedShotsFrames">
         -
         {{ displayedShotsFrames }}
-        {{ $tc('main.nb_frames', displayedShotsFrames) }}
+        {{ $t('main.nb_frames', displayedShotsFrames) }}
       </span>
       <span v-if="isPaperProduction">
         -
         {{ displayedShotsDrawings }}
-        {{ $tc('main.nb_drawings', displayedShotsDrawings) }}
+        {{ $t('main.nb_drawings', displayedShotsDrawings) }}
       </span>
       <span v-if="displayedShotsTimeSpent > 0 || displayedShotsEstimation > 0">
         ({{ formatDuration(displayedShotsTimeSpent) }}
         {{
           isDurationInHours
-            ? $tc(
+            ? $t(
                 'main.hours_spent',
                 formatDuration(displayedShotsTimeSpent, false)
               )
-            : $tc(
+            : $t(
                 'main.days_spent',
                 formatDuration(displayedShotsTimeSpent, false)
               )
@@ -803,11 +825,11 @@
         {{ formatDuration(displayedShotsEstimation) }}
         {{
           isDurationInHours
-            ? $tc(
+            ? $t(
                 'main.hours_estimated',
                 formatDuration(displayedShotsEstimation, false)
               )
-            : $tc(
+            : $t(
                 'main.man_days',
                 formatDuration(displayedShotsEstimation, false)
               )
@@ -836,6 +858,7 @@ import EntityThumbnail from '@/components/widgets/EntityThumbnail.vue'
 import MetadataHeader from '@/components/cells/MetadataHeader.vue'
 import MetadataInput from '@/components/cells/MetadataInput.vue'
 import RowActionsCell from '@/components/cells/RowActionsCell.vue'
+import SortableFieldHeader from '@/components/widgets/SortableFieldHeader.vue'
 import TableMetadataHeaderMenu from '@/components/widgets/TableMetadataHeaderMenu.vue'
 import TableMetadataSelectorMenu from '@/components/widgets/TableMetadataSelectorMenu.vue'
 import TableHeaderMenu from '@/components/widgets/TableHeaderMenu.vue'
@@ -861,6 +884,7 @@ export default {
     MetadataHeader,
     MetadataInput,
     RowActionsCell,
+    SortableFieldHeader,
     TableHeaderMenu,
     TableMetadataHeaderMenu,
     TableMetadataSelectorMenu,
@@ -913,6 +937,8 @@ export default {
     return {
       type: 'shot',
       hiddenColumns: {},
+      lastFieldHeaderMenuDisplayed: null,
+      lastFieldHeaderMenuLabel: null,
       lastHeaderMenuDisplayed: null,
       lastMetadataHeaderMenuDisplayed: null,
       lastHeaderMenuDisplayedIndexInGrid: null,
@@ -1315,6 +1341,18 @@ thead .name.shot-name {
   min-width: 150px;
   max-width: 150px;
   width: 150px;
+}
+
+.expand-task-types :deep(.validation-cell) {
+  width: auto;
+  min-width: 150px;
+  max-width: none;
+}
+
+.expand-task-types :deep(.task-type-name) {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .frames {

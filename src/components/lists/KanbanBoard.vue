@@ -47,7 +47,11 @@
             }"
             draggable="true"
             :key="task.id"
+            role="button"
             @click="onSelectTask(task, $event.ctrlKey || $event.metaKey)"
+            @keydown.enter.prevent="
+              onSelectTask(task, $event.ctrlKey || $event.metaKey)
+            "
             @dragstart="onCardDragStart($event, task, column.status)"
             @drag="onCardDrag"
             @dragend="onCardDragEnd"
@@ -117,7 +121,7 @@
       :form-data="addPreviewFormData"
       :title="
         modals.task
-          ? `${modals.task.entity_name} / ${taskTypeMap.get(modals.task.task_type_id).name}`
+          ? `${modals.task.entity_name} / ${taskTypeMap.get(modals.task.task_type_id)?.name || ''}`
           : ''
       "
       @cancel="closeAddPreviewModal"

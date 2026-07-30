@@ -82,7 +82,10 @@
             :class="{
               selected: selectionGrid[entry.id]
             }"
+            role="button"
+            tabindex="0"
             @click="selectTask($event, i, entry)"
+            @keydown.enter.prevent="selectTask($event, i, entry)"
             v-for="(entry, i) in displayedTasks"
           >
             <td
@@ -173,7 +176,7 @@
                 v-if="isEditable && selectionGrid[entry.id]"
               />
               <template v-else>
-                {{ formatDate(entry.start_date) }}
+                {{ formatDisplayDate(entry.start_date) }}
               </template>
             </td>
             <td class="due-date">
@@ -186,7 +189,7 @@
                 v-if="isEditable && selectionGrid[entry.id]"
               />
               <template v-else>
-                {{ formatDate(entry.due_date) }}
+                {{ formatDisplayDate(entry.due_date) }}
               </template>
             </td>
             <td
@@ -266,7 +269,7 @@
                 v-if="!done"
               />
               <td class="end-date" v-else>
-                {{ formatDate(entry.end_date) }}
+                {{ formatDisplayDate(entry.end_date) }}
               </td>
             </template>
             <th class="actions" v-else></th>
@@ -287,7 +290,7 @@
       v-if="tasks.length === 0 && !isLoading"
     >
       <p>
-        <img src="../../assets/illustrations/empty_todo.png" />
+        <img src="../../assets/illustrations/empty_todo.png" alt="" />
       </p>
       <p>
         {{ emptyText }}
@@ -296,19 +299,19 @@
 
     <p class="has-text-centered footer-info" v-if="tasks.length && !isLoading">
       {{ tasks.length }}
-      {{ $tc('tasks.tasks', tasks.length) }}
+      {{ $t('tasks.tasks', tasks.length) }}
       ({{ formatDuration(timeSpent) }}
       {{
         isDurationInHours
-          ? $tc('main.hours_spent', formatDuration(timeSpent, false))
-          : $tc('main.days_spent', formatDuration(timeSpent, false))
+          ? $t('main.hours_spent', formatDuration(timeSpent, false))
+          : $t('main.days_spent', formatDuration(timeSpent, false))
       }}
       /
       {{ formatDuration(timeEstimated) }}
       {{
         isDurationInHours
-          ? $tc('main.hours_estimated', formatDuration(timeEstimated, false))
-          : $tc('main.days_estimated', formatDuration(timeEstimated, false))
+          ? $t('main.hours_estimated', formatDuration(timeEstimated, false))
+          : $t('main.days_estimated', formatDuration(timeEstimated, false))
       }}
       )
     </p>
@@ -323,6 +326,7 @@ import { descriptorMixin } from '@/components/mixins/descriptors'
 import { formatListMixin } from '@/components/mixins/format'
 import { selectionListMixin } from '@/components/mixins/selection'
 
+import { getTaskEntityPath } from '@/lib/path'
 import { sortPeople } from '@/lib/sorting'
 import {
   daysToMinutes,
@@ -546,10 +550,6 @@ export default {
       return date ? moment(date, 'YYYY-MM-DD').toDate() : null
     },
 
-    formatDate(date) {
-      return date ? formatSimpleDate(date) : ''
-    },
-
     onBodyScroll(event) {
       if (!this.$refs.body) return
       const position = event.target
@@ -571,36 +571,17 @@ export default {
     },
 
     entityPath(entity) {
-      const entityType = entity.sequence_name ? 'shot' : 'asset'
-      const route = {
-        name: entityType,
-        params: {
-          production_id: entity.project_id
-        }
-      }
-
-      if (entityType === 'asset') {
-        route.params.asset_id = entity.entity_id
-      } else {
-        route.params.shot_id = entity.entity_id
-      }
-
+      const entityType = entity.entity_type_name
       const production = this.productionMap.get(entity.project_id)
       let episodeId = entity.episode_id
       if (production && production.production_type === 'tvshow' && !episodeId) {
-        if (entityType === 'shot') {
+        if (entityType === 'Shot') {
           episodeId = production.first_episode_id
-        } else {
+        } else if (!['Edit', 'Episode', 'Sequence'].includes(entityType)) {
           episodeId = 'main'
         }
       }
-
-      if (episodeId) {
-        route.name = `episode-${entityType}`
-        route.params.episode_id = episodeId
-      }
-
-      return route
+      return getTaskEntityPath(entity, episodeId)
     },
 
     onKeyDown(event) {
@@ -736,6 +717,7 @@ export default {
     updateTasksEstimation({ estimation }) {
       Object.keys(this.selectionGrid).forEach(taskId => {
         const task = this.taskMap.get(taskId)
+        if (!task) return
         let data = { estimation }
         if (task.start_date) {
           const startDate = moment(task.start_date)
@@ -757,6 +739,7 @@ export default {
     updateStartDate(date) {
       Object.keys(this.selectionGrid).forEach(taskId => {
         const task = this.taskMap.get(taskId)
+        if (!task) return
         const dueDate = task.due_date ? parseSimpleDate(task.due_date) : null
         let data
         if (date) {
@@ -787,6 +770,7 @@ export default {
     updateDueDate(date) {
       Object.keys(this.selectionGrid).forEach(taskId => {
         const task = this.taskMap.get(taskId)
+        if (!task) return
         const startDate = task.start_date
           ? parseSimpleDate(task.start_date)
           : null

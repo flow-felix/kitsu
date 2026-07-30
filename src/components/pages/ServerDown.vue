@@ -1,7 +1,7 @@
 <template>
   <div class="server-down page has-text-centered">
     <div class="illustration">
-      <img src="@/assets/illustrations/500.png" />
+      <img src="@/assets/illustrations/500.png" alt="" />
     </div>
     <h1 class="title">{{ $t('server_down.title') }}</h1>
     <p>
@@ -20,12 +20,15 @@ export default {
     ...mapGetters(['isAuthenticated', 'user'])
   },
   mounted() {
-    auth.isServerLoggedIn(err => {
-      if (!err) {
+    auth
+      .isServerLoggedIn()
+      .then(() => {
         const target = this.$store.state.route.query.redirect || '/'
         this.$router.push(target)
-      }
-    })
+      })
+      .catch(() => {
+        // Server still down: stay on this page.
+      })
   }
 }
 </script>

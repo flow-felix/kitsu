@@ -102,7 +102,14 @@
 
     <div class="column side-column" v-if="isTaskSidePanelOpen">
       <task-info>
-        <a class="close-button" @click="toggleTaskSidePanel">
+        <a
+          class="close-button"
+          role="button"
+          tabindex="0"
+          @click="toggleTaskSidePanel"
+          @keydown.enter.prevent="toggleTaskSidePanel"
+          @keydown.space.prevent="toggleTaskSidePanel"
+        >
           <x-icon class="align-middle" :size="16" />
         </a>
         <h2 class="mt1">
@@ -154,13 +161,13 @@
                       :production="task.production"
                       :with-avatar="false"
                     />
-                    <div class="ellipsis strong entity-name">
-                      {{ task.full_name.split(' / ').slice(0, -1).join(' / ') }}
+                    <div class="entity-name strong">
+                      {{ task.full_entity_name }}
                     </div>
                     <div class="flexrow">
                       <em v-if="task.man_days">
                         {{ task.man_days }}
-                        {{ $tc('main.man_days', task.man_days) }}
+                        {{ $t('main.man_days', task.man_days) }}
                       </em>
                       <em v-else>
                         {{ $t('main.no_estimation') }}
@@ -232,7 +239,13 @@ import { mapGetters, mapActions } from 'vuex'
 
 import colors from '@/lib/colors'
 import { getPersonPath } from '@/lib/path'
-import { addBusinessDays, minutesToDays, parseSimpleDate } from '@/lib/time'
+import {
+  addBusinessDays,
+  getFirstStartDate,
+  getLastEndDate,
+  minutesToDays,
+  parseSimpleDate
+} from '@/lib/time'
 
 import { formatListMixin } from '@/components/mixins/format'
 
@@ -321,6 +334,12 @@ export default {
     }
   },
 
+  created() {
+    // non-reactive: person id -> raw tasks, so re-expanding a row is instant.
+    // Entries are dropped whenever the row's assignments or dates change.
+    this.personTasksCache = new Map()
+  },
+
   mounted() {
     this.selectedDepartment = this.$route.query.department || undefined
     this.selectedStudio = this.$route.query.studio || undefined
@@ -369,11 +388,13 @@ export default {
           person => person.studio_id === this.selectedStudio
         )
       }
-      if (this.selectedProduction) {
-        selectablePeople = selectablePeople.filter(person => {
-          const production = this.productionMap.get(this.selectedProduction)
-          return production.team.includes(person.id)
-        })
+      const production = this.selectedProduction
+        ? this.productionMap.get(this.selectedProduction)
+        : null
+      if (production) {
+        selectablePeople = selectablePeople.filter(person =>
+          production.team.includes(person.id)
+        )
       }
       return selectablePeople
     },
@@ -416,9 +437,15 @@ export default {
     },
 
     async init() {
-      await this.loadPeople()
-      await this.loadPersonDates()
-      await this.loadDaysOff()
+      try {
+        await this.loadPeople()
+        await this.loadPersonDates()
+        await this.loadDaysOff()
+      } catch (err) {
+        console.error(err)
+        this.errors.schedule = true
+        return
+      }
 
       this.refreshSchedule()
       this.scrollScheduleToToday()
@@ -468,7 +495,14 @@ export default {
           // populate tasks with extra data
           data.map(task => ({
             ...task,
-            full_name: `${task.entity_type_name} / ${task.entity_name} / ${task.type_name}`,
+            full_entity_name: [
+              task.entity_type_name,
+              task.episode_name,
+              task.sequence_name,
+              task.entity_name
+            ]
+              .filter(Boolean)
+              .join(' / '),
             man_days: minutesToDays(this.organisation, task.estimation),
             department: this.departmentMap.get(
               this.taskTypeMap.get(task.task_type_id)?.department_id
@@ -485,7 +519,7 @@ export default {
       this.loading.unassignedTasks = false
     },
 
-    async loadPersonDates(syncSchedule = false) {
+    async loadPersonDates() {
       const personDatesList = await this.getPersonsTasksDates()
       this.personDates = {}
       personDatesList.forEach(p => {
@@ -494,15 +528,17 @@ export default {
           startDate: parseSimpleDate(p.min_date)
         }
       })
+    },
 
-      if (syncSchedule) {
-        this.scheduleItems.forEach(scheduleItem => {
-          const personDates = this.personDates[scheduleItem.id]
-          if (personDates) {
-            scheduleItem.startDate = personDates.startDate
-            scheduleItem.endDate = personDates.endDate
-          }
-        })
+    // recompute the root bar locally after a drag: the person is expanded so
+    // its children are loaded, no need to refetch every person's dates
+    refreshPersonRootDates(person) {
+      if (!person?.children?.length) return
+      person.startDate = getFirstStartDate(person.children).clone()
+      person.endDate = getLastEndDate(person.children).clone()
+      this.personDates[person.id] = {
+        startDate: person.startDate.clone(),
+        endDate: person.endDate.clone()
       }
     },
 
@@ -566,6 +602,9 @@ export default {
         endDate = startDate.clone().add(1, 'days')
       }
       const taskType = this.taskTypeMap.get(task.task_type_id)
+      if (!taskType) {
+        return null
+      }
       return {
         ...task,
         name: `${task.full_entity_name} / ${taskType.name}`,
@@ -613,6 +652,10 @@ export default {
     async onScheduleItemDropped(item, person, refreshScheduleCallBack) {
       if (item.type === 'Task') {
         const task = this.buildTaskScheduleItem(person, item)
+        if (!task) {
+          return
+        }
+        this.personTasksCache.delete(person.id)
         person.children.push(task)
         person.children.sort(
           firstBy('startDate').thenBy('project_name').thenBy('name')
@@ -620,11 +663,19 @@ export default {
         if (refreshScheduleCallBack) {
           refreshScheduleCallBack(person)
         }
-        await this.assignSelectedTasks({
-          personId: person.id,
-          taskIds: [task.id]
-        })
-        await this.saveTaskScheduleItem(task)
+        try {
+          await this.assignSelectedTasks({
+            personId: person.id,
+            taskIds: [task.id]
+          })
+          await this.saveTaskScheduleItem(task)
+        } catch (err) {
+          console.error(err)
+          person.children = person.children.filter(({ id }) => id !== task.id)
+          if (refreshScheduleCallBack) {
+            refreshScheduleCallBack(person)
+          }
+        }
         await this.loadUnassignedTasks()
       }
     },
@@ -643,14 +694,19 @@ export default {
             item.parentElement.daysOff
           )
         }
-        await this.saveTaskScheduleItem(item)
-        await this.loadPersonDates(true)
-        await this.loadDaysOff()
+        try {
+          await this.saveTaskScheduleItem(item)
+          this.refreshPersonRootDates(item.parentElement)
+          this.personTasksCache.delete(item.parentElement.id)
+        } catch (err) {
+          console.error(err)
+        }
       }
     },
 
     onScheduleItemAssigned(item, person) {
       if (item.type === 'Task') {
+        this.personTasksCache.delete(person.id)
         person.children.sort(
           firstBy('startDate').thenBy('project_name').thenBy('name')
         )
@@ -663,6 +719,7 @@ export default {
 
     onScheduleItemUnassigned(item, person) {
       if (item.type === 'Task') {
+        this.personTasksCache.delete(person.id)
         this.unassignPersonFromTask({
           person,
           task: item
@@ -680,7 +737,11 @@ export default {
       element.loading = true
       element.children = []
       try {
-        const tasks = await this.fetchPersonTasks(element.id)
+        let tasks = this.personTasksCache.get(element.id)
+        if (!tasks) {
+          tasks = await this.fetchPersonTasks(element.id)
+          this.personTasksCache.set(element.id, tasks)
+        }
         element.children = tasks
           .map(task => this.buildTaskScheduleItem(element, task))
           .filter(Boolean)

@@ -155,15 +155,27 @@
                     {{ $t('tasks.set_preview') }}
                   </span>
                 </button>
+                <label
+                  class="flexrow-item pointer"
+                  v-if="isMovie && isCurrentUserManager"
+                >
+                  <input
+                    class="mr02"
+                    type="checkbox"
+                    v-model="isUseCurrentFrame"
+                  />
+                  {{ $t('tasks.use_current_frame') }}
+                </label>
                 <span class="error flexrow-item" v-if="errors.setPreview">
                   {{ $t('tasks.set_preview_error') }}
                 </span>
               </div>
               <view-playlist-modal
-                :active="modals.hookupPlaylist"
-                :task-ids="hookupPlaylistTaskIds"
+                active
                 sort
+                :task-ids="hookupPlaylistTaskIds"
                 @cancel="hideHookupPlaylistModal"
+                v-if="modals.hookupPlaylist"
               />
             </div>
 
@@ -221,25 +233,71 @@
                     <td class="field-label">
                       {{ $t('tasks.fields.start_date') }}
                     </td>
-                    <td>{{ formatSimpleDate(task.start_date) }}</td>
+                    <td>{{ formatDisplayDate(task.start_date) }}</td>
                   </tr>
                   <tr class="datatable-row">
                     <td class="field-label">
                       {{ $t('tasks.fields.due_date') }}
                     </td>
-                    <td>{{ formatSimpleDate(task.due_date) }}</td>
+                    <td>{{ formatDisplayDate(task.due_date) }}</td>
                   </tr>
                   <tr class="datatable-row">
                     <td class="field-label">
                       {{ $t('tasks.fields.end_date') }}
                     </td>
-                    <td>{{ formatSimpleDate(task.end_date) }}</td>
+                    <td>{{ formatDisplayDate(task.end_date) }}</td>
                   </tr>
                   <tr class="datatable-row">
                     <td class="field-label">
                       {{ $t('tasks.fields.done_date') }}
                     </td>
-                    <td>{{ formatSimpleDate(task.done_date) }}</td>
+                    <td>{{ formatDisplayDate(task.done_date) }}</td>
+                  </tr>
+                  <tr
+                    class="datatable-row"
+                    :key="descriptor.id"
+                    v-for="descriptor in taskMetadata"
+                  >
+                    <td class="field-label">{{ descriptor.name }}</td>
+                    <td
+                      :class="{
+                        'pre-wrap': descriptor.data_type === 'textarea'
+                      }"
+                    >
+                      <a
+                        :href="task.data[descriptor.field_name]"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        v-if="
+                          descriptor.data_type === 'url' &&
+                          task.data &&
+                          task.data[descriptor.field_name]
+                        "
+                      >
+                        {{ task.data[descriptor.field_name] }}
+                      </a>
+                      <span
+                        class="flexrow"
+                        v-else-if="
+                          descriptor.data_type === 'person' &&
+                          personForDescriptor(descriptor)
+                        "
+                      >
+                        <people-avatar
+                          class="flexrow-item"
+                          :person="personForDescriptor(descriptor)"
+                          :size="22"
+                          :font-size="11"
+                          :is-link="false"
+                        />
+                        <span class="flexrow-item">
+                          {{ personForDescriptor(descriptor).name }}
+                        </span>
+                      </span>
+                      <template v-else>
+                        {{ getTaskMetadataValue(descriptor) }}
+                      </template>
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -292,19 +350,20 @@
                     :frame="currentFrame"
                     :is-change="isStatusChange(index)"
                     :is-checkable="
-                      user.id === comment.person?.id ||
+                      (user && user.id === comment.person?.id) ||
                       (isCurrentUserArtist && isAssigned) ||
                       isDepartmentSupervisor ||
                       isCurrentUserManager
                     "
                     :is-editable="
-                      user.id === comment.person?.id || isCurrentUserManager
+                      (user && user.id === comment.person?.id) ||
+                      isCurrentUserManager
                     "
                     :is-pinnable="
                       isDepartmentSupervisor || isCurrentUserManager
                     "
                     :is-replyable="
-                      user.id === comment.person?.id ||
+                      (user && user.id === comment.person?.id) ||
                       isAssigned ||
                       isDepartmentSupervisor ||
                       isCurrentUserManager
@@ -349,7 +408,7 @@
         :expected-frames="entityFrames"
         :title="
           task
-            ? `${task.entity_name} / ${taskTypeMap.get(task.task_type_id).name}`
+            ? `${task.entity_name} / ${taskTypeMap.get(task.task_type_id)?.name || ''}`
             : ''
         "
         @cancel="closeAddPreviewModal"
@@ -365,7 +424,7 @@
         message=""
         :title="
           task
-            ? `${task.entity_name} / ${taskTypeMap.get(task.task_type_id).name}`
+            ? `${task.entity_name} / ${taskTypeMap.get(task.task_type_id)?.name || ''}`
             : ''
         "
         @cancel="hideExtraPreviewModal"
@@ -423,7 +482,10 @@ import { mapGetters, mapActions } from 'vuex'
 import drafts from '@/lib/drafts'
 import { getTaskEntityPath, getTaskEntitiesPath } from '@/lib/path'
 import { formatRevision } from '@/lib/preview'
-import { getTaskTypePriorityOfProd } from '@/lib/productions'
+import {
+  getTaskTypePriorityOfProd,
+  getTaskTypeWithUrl
+} from '@/lib/productions'
 import { sortPeople } from '@/lib/sorting'
 
 import { formatListMixin } from '@/components/mixins/format'
@@ -493,6 +555,7 @@ export default {
       draftComment: {},
       previewForms: [],
       currentFrame: 0,
+      isUseCurrentFrame: false,
       currentTask: null,
       hookupPlaylistTaskIds: [],
       selectedTab: 'validation',
@@ -574,9 +637,17 @@ export default {
       'taskStatus',
       'taskStatusForCurrentUser',
       'taskMap',
+      'taskMetadataDescriptors',
       'taskTypeMap',
       'user'
     ]),
+
+    taskMetadata() {
+      if (!this.task) return []
+      return this.taskMetadataDescriptors.filter(
+        descriptor => descriptor.task_type_id === this.task.task_type_id
+      )
+    },
 
     assetList() {
       return assetsStore.cache.assets
@@ -858,7 +929,7 @@ export default {
       if (this.task) {
         const taskType = this.taskTypeMap.get(this.task.task_type_id)
         return this.$t('main.delete_text', {
-          name: `${this.task.entity_name} / ${taskType.name}`
+          name: `${this.task.entity_name} / ${taskType?.name ?? ''}`
         })
       } else {
         return ''
@@ -867,13 +938,15 @@ export default {
 
     assignees() {
       return sortPeople(
-        this.task.assignees.map(personId => this.personMap.get(personId))
+        this.task.assignees
+          .map(personId => this.personMap.get(personId))
+          .filter(Boolean)
       )
     },
 
     isAssigned() {
       return (
-        this.task?.assignees.some(personId => personId === this.user.id) ??
+        this.task?.assignees?.some(personId => personId === this.user?.id) ??
         false
       )
     },
@@ -922,6 +995,7 @@ export default {
 
       // get the current task entity type eg. 'Shot' or 'Asset'
       const current_task_type = this.taskTypeMap.get(this.task.task_type_id)
+      if (!current_task_type) return []
       const task_type_entity = current_task_type.for_entity
       const task_type_entity_slug = task_type_entity.toLowerCase() + 's'
 
@@ -945,17 +1019,39 @@ export default {
         .filter(taskType => entity_tasks[taskType.id])
 
         // add a url that points to the task
-        .map(taskType => {
-          const task = entity_tasks[taskType.id]
-          if (task)
-            taskType.url = `/productions/${task.project_id}/episodes/${task.episode_id || 'all'}/${task_type_entity_slug}/tasks/${task.id}`
-          return taskType
-        })
+        .map(taskType =>
+          getTaskTypeWithUrl(
+            taskType,
+            entity_tasks[taskType.id],
+            task_type_entity_slug
+          )
+        )
       return filtered
     }
   },
 
   methods: {
+    getTaskMetadataValue(descriptor) {
+      const value = this.task?.data?.[descriptor.field_name]
+      if (value == null || value === '') return ''
+      if (descriptor.data_type === 'date') {
+        return this.formatDisplayDate(value)
+      }
+      if (descriptor.data_type === 'boolean') {
+        return value === 'true' ? this.$t('main.yes') : this.$t('main.no')
+      }
+      if (descriptor.data_type === 'person') {
+        return this.personMap.get(value)?.name || ''
+      }
+      return value
+    },
+
+    personForDescriptor(descriptor) {
+      return (
+        this.personMap.get(this.task?.data?.[descriptor.field_name]) || null
+      )
+    },
+
     ...mapActions([
       'addAttachmentToComment',
       'ackComment',
@@ -1017,23 +1113,20 @@ export default {
         this.taskLoading = { isLoading: true, isError: false }
         return this.loadTask({ taskId: this.route.params.task_id })
           .then(task => {
-            let loadingFunction = callback => {
-              this.loadAssets().then(callback)
-            }
+            let loadingFunction = () => this.loadAssets()
 
             if (task.entity_type_name === 'Shot') {
-              loadingFunction = callback => {
+              loadingFunction = () =>
                 this.loadEpisodes()
                   .then(() => {
                     if (this.isTVShow) {
                       this.setCurrentEpisode(task.episode.id)
                     }
-                    this.loadShots(callback)
+                    return this.loadShots()
                   })
-                  .catch(callback)
-              }
+                  .catch(err => console.error(err))
             }
-            return loadingFunction(() => {
+            return loadingFunction().then(() => {
               this.task = task
               return this.loadTaskComments({
                 taskId: task.id,
@@ -1246,11 +1339,16 @@ export default {
       this.loading.setPreview = true
       this.errors.setPreview = false
       const previewId = previewPlayer.currentPreview.id
+      const frame =
+        this.isMovie && this.isUseCurrentFrame
+          ? this.currentFrame + 1
+          : undefined
       this.$store
         .dispatch('setPreview', {
           taskId: this.task.id,
           entityId: this.task.entity.id,
-          previewId
+          previewId,
+          frame
         })
         .then(() => {
           this.loading.setPreview = false
@@ -1393,7 +1491,7 @@ export default {
       if (this.isTVShow) {
         const taskType = this.taskTypeMap.get(this.task.task_type_id)
         route.name = 'episode-task-preview'
-        if (taskType.for_entity === 'Episode') {
+        if (taskType?.for_entity === 'Episode') {
           route.name = 'episode-episode-task-preview'
         }
       }
@@ -1415,7 +1513,8 @@ export default {
           updates
         })
         previewPlayer?.confirmAnnotationsSaved()
-      } catch {
+      } catch (err) {
+        console.error('Failed to save annotations', err)
         previewPlayer?.restoreFailedAnnotations()
       }
     },
@@ -1509,7 +1608,7 @@ export default {
         )
         const user = this.personMap.get(eventData.person_id)
         if (comment && user) {
-          if (this.user.id === user.id) {
+          if (this.user?.id === user.id) {
             if (
               (type === 'ack' && !comment.acknowledgements.includes(user.id)) ||
               (type === 'unack' && comment.acknowledgements.includes(user.id))
@@ -1715,7 +1814,8 @@ export default {
   head() {
     let title = `${this.$t('main.loading')} - Kitsu`
     if (this.task) {
-      const taskTypeName = this.taskTypeMap.get(this.task.task_type_id).name
+      const taskTypeName =
+        this.taskTypeMap.get(this.task.task_type_id)?.name || ''
       title = `${this.title} / ${taskTypeName} - Kitsu`
     }
     return { title }
@@ -1921,6 +2021,10 @@ video {
 .field-label {
   width: 130px;
   max-width: 130px;
+}
+
+.pre-wrap {
+  white-space: pre-wrap;
 }
 
 .title {

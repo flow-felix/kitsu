@@ -2,6 +2,7 @@
   <router-link
     :to="targetRoute"
     v-if="
+      taskType &&
       isLink &&
       productionId &&
       !isCurrentUserClient &&
@@ -26,12 +27,20 @@
       rounded,
       thin: thin
     }"
-    v-else
+    v-else-if="taskType"
   >
     <span :title="title">
       {{ taskType.name }}
     </span>
-    <span class="delete-times" v-if="deletable" @click="$emit('delete')">
+    <span
+      class="delete-times"
+      role="button"
+      tabindex="0"
+      v-if="deletable"
+      @click="$emit('delete')"
+      @keydown.enter.prevent="$emit('delete')"
+      @keydown.space.prevent="$emit('delete')"
+    >
       ×
     </span>
   </div>
@@ -91,13 +100,13 @@ defineEmits(['delete'])
 const isCurrentUserClient = computed(() => store.getters.isCurrentUserClient)
 
 const color = computed(() => {
-  return props.taskType.color?.toUpperCase() === '#000000'
+  return props.taskType?.color?.toUpperCase() === '#000000'
     ? '#666'
-    : props.taskType.color
+    : props.taskType?.color
 })
 
 const title = computed(() => {
-  return `${props.taskType.for_entity} / ${props.taskType.name}`
+  return `${props.taskType?.for_entity} / ${props.taskType?.name}`
 })
 
 const targetRoute = computed(() => {

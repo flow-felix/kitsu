@@ -66,6 +66,18 @@
             v-model="form.country"
             v-if="user.role !== 'client' && !user.is_guest"
           />
+          <combobox
+            :label="$t('profile.date_format')"
+            :options="dateFormatOptions"
+            v-model="form.display_date_format"
+          />
+        </div>
+        <div class="toggle-row">
+          <checkbox
+            :toggle="true"
+            :label="$t('profile.use_12_hour_clock')"
+            v-model="form.use_12_hour_clock"
+          />
         </div>
       </card>
 
@@ -191,6 +203,7 @@ import { useStore } from 'vuex'
 
 import { getCountryOptions } from '@/lib/countries'
 import lang, { localeCode } from '@/lib/lang'
+import { DATE_DISPLAY_FORMATS } from '@/lib/time'
 
 import ChangeAvatarModal from '@/components/modals/ChangeAvatarModal.vue'
 import Card from '@/components/widgets/Card.vue'
@@ -219,7 +232,9 @@ const form = ref({
   phone: '',
   country: null,
   timezone: 'Europe/Paris',
-  locale: 'en_US'
+  locale: 'en_US',
+  use_12_hour_clock: false,
+  display_date_format: 'YYYY-MM-DD'
 })
 
 const passwordForm = ref({
@@ -244,18 +259,20 @@ const errors = reactive({ info: false, notifications: false })
 const localeOptions = [
   { label: 'Chinese (简体中文)', value: 'zh_Hans_CN' },
   { label: 'Chinese TC (繁體中文)', value: 'zh_Hant_TW' },
-  { label: 'Danish (Dansk)', value: 'da_DA' },
+  { label: 'Danish (Dansk)', value: 'da_DK' },
   { label: 'Dutch (Nederlands)', value: 'nl_NL' },
   { label: 'English', value: 'en_US' },
   { label: 'French (Français)', value: 'fr_FR' },
   { label: 'German (Deutsch)', value: 'de_DE' },
   { label: 'Hungarian (Magyar)', value: 'hu_HU' },
+  { label: 'Italian (Italiano)', value: 'it_IT' },
   { label: 'Japanese (日本語)', value: 'ja_JP' },
   { label: 'Korean (한국어)', value: 'ko_KR' },
-  { label: 'Portuguese Brazilian (Português)', value: 'pt_BR' },
   { label: 'Persian (فارسی)', value: 'fa_IR' },
-  { label: 'Spanish (Español)', value: 'es_ES' },
-  { label: 'Russian (Русский)', value: 'ru_RU' }
+  { label: 'Polish (Polski)', value: 'pl_PL' },
+  { label: 'Portuguese Brazilian (Português)', value: 'pt_BR' },
+  { label: 'Russian (Русский)', value: 'ru_RU' },
+  { label: 'Spanish (Español)', value: 'es_ES' }
 ]
 
 // Computed
@@ -272,10 +289,18 @@ const timezoneOptions = computed(() =>
 
 const countryOptions = computed(() => getCountryOptions(localeCode.value))
 
+const dateFormatOptions = DATE_DISPLAY_FORMATS.map(format => ({
+  label: `${format} (${moment().format(format)})`,
+  value: format
+}))
+
 // Functions
 
 const syncFormFromUser = () => {
   Object.assign(form.value, user.value)
+  form.value.use_12_hour_clock = Boolean(user.value.use_12_hour_clock)
+  form.value.display_date_format =
+    user.value.display_date_format || 'YYYY-MM-DD'
   form.value.notifications_enabled = Boolean(user.value.notifications_enabled)
   form.value.notifications_slack_enabled = Boolean(
     user.value.notifications_slack_enabled

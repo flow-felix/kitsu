@@ -21,18 +21,18 @@
                 >
                   <router-link
                     class="flexrow-item ellipsis"
-                    :title="taskTypeMap.get(columnId).name"
+                    :title="taskTypeMap.get(columnId)?.name"
                     :to="taskTypePath(columnId)"
                     v-if="!isCurrentUserClient"
                   >
-                    {{ taskTypeMap.get(columnId).name }}
+                    {{ taskTypeMap.get(columnId)?.name }}
                   </router-link>
                   <span
                     class="flexrow-item ellipsis"
-                    :title="taskTypeMap.get(columnId).name"
+                    :title="taskTypeMap.get(columnId)?.name"
                     v-else
                   >
-                    {{ taskTypeMap.get(columnId).name }}
+                    {{ taskTypeMap.get(columnId)?.name }}
                   </span>
                 </div>
               </th>
@@ -124,7 +124,7 @@
       v-if="isEmptyList && !isCurrentUserClient && !isLoading"
     >
       <p class="info">
-        <img src="../../assets/illustrations/empty_shot.png" />
+        <img src="../../assets/illustrations/empty_shot.png" alt="" />
       </p>
       <p class="info">{{ $t('sequences.empty_list') }}</p>
     </div>
@@ -133,14 +133,14 @@
       v-if="isEmptyList && isCurrentUserClient && !isLoading"
     >
       <p class="info">
-        <img src="../../assets/illustrations/empty_shot.png" />
+        <img src="../../assets/illustrations/empty_shot.png" alt="" />
       </p>
       <p class="info">{{ $t('sequences.empty_list_client') }}</p>
     </div>
 
     <p class="has-text-centered nb-sequences" v-if="!isEmptyList && !isLoading">
       {{ displayedSequencesLength }}
-      {{ $tc('sequences.number', displayedSequencesLength) }}
+      {{ $t('sequences.number', displayedSequencesLength) }}
     </p>
   </div>
 </template>

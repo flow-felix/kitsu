@@ -304,7 +304,7 @@ export default {
       budgetDepartments.sort((a, b) => {
         const departmentA = this.departmentMap.get(a.id)
         const departmentB = this.departmentMap.get(b.id)
-        return departmentA.name.localeCompare(departmentB.name)
+        return (departmentA?.name || '').localeCompare(departmentB?.name || '')
       })
       return budgetDepartments
     },
@@ -346,14 +346,14 @@ export default {
     pieChartData() {
       return this.budgetDepartments.map(departmentEntry => {
         const department = this.departmentMap.get(departmentEntry.id)
-        return [department.name, departmentEntry.total]
+        return [department?.name, departmentEntry.total]
       })
     },
 
     pieChartColors() {
       return this.budgetDepartments.map(departmentEntry => {
         const department = this.departmentMap.get(departmentEntry.id)
-        return department.color
+        return department?.color
       })
     },
 
@@ -467,14 +467,14 @@ export default {
       } else {
         const personA = this.personMap.get(a.person_id)
         const personB = this.personMap.get(b.person_id)
-        if (personA.name === personB.name) {
+        if (personA?.name === personB?.name) {
           if (positionA === positionB) {
             return seniorityB - seniorityA
           } else {
             return positionB - positionA
           }
         } else {
-          return personA.name.localeCompare(personB.name)
+          return (personA?.name || '').localeCompare(personB?.name || '')
         }
       }
     },

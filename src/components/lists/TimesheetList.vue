@@ -240,7 +240,7 @@
     />
 
     <p class="has-text-centered footer-info" v-if="!isLoading">
-      {{ tasks.length }} {{ $tc('tasks.tasks', tasks.length) }}
+      {{ tasks.length }} {{ $t('tasks.tasks', tasks.length) }}
     </p>
 
     <day-off-modal
@@ -279,6 +279,8 @@ import moment from 'moment-timezone'
 import { mapGetters } from 'vuex'
 
 import { PAGE_SIZE } from '@/lib/pagination'
+import { getTaskEntityPath } from '@/lib/path'
+import { formatVerboseDate } from '@/lib/time'
 
 import ButtonSimple from '@/components/widgets/ButtonSimple.vue'
 import DateField from '@/components/widgets/DateField.vue'
@@ -389,6 +391,7 @@ export default {
 
   computed: {
     ...mapGetters([
+      'dateFormat',
       'isCurrentUserArtist',
       'organisation',
       'productionMap',
@@ -441,7 +444,7 @@ export default {
     },
 
     currentDate() {
-      return moment().format('LL')
+      return formatVerboseDate(moment(), this.dateFormat)
     },
 
     onSliderChange(valueInfo) {
@@ -449,26 +452,7 @@ export default {
     },
 
     entityPath(entity) {
-      const entityType = entity.sequence_name ? 'shot' : 'asset'
-      const route = {
-        name: entityType,
-        params: {
-          production_id: entity.project_id
-        }
-      }
-
-      if (entityType === 'asset') {
-        route.params.asset_id = entity.entity_id
-      } else {
-        route.params.shot_id = entity.entity_id
-      }
-
-      if (entity.episode_id) {
-        route.name = `episode-${entityType}`
-        route.params.episode_id = entity.episode_id
-      }
-
-      return route
+      return getTaskEntityPath(entity, entity.episode_id)
     },
 
     toggleDayOff() {

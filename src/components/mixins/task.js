@@ -1,3 +1,6 @@
+import func from '@/lib/func'
+import { DEFAULT_FPS } from '@/lib/video'
+
 /*
  * Helpers to display task information
  */
@@ -13,7 +16,9 @@ export const taskMixin = {
       // in its own store map — task.entity is only { id } here.
       const entityFps = parseFloat(this.getTaskEntity(task)?.data?.fps)
       if (entityFps) return entityFps
-      return parseInt(this.productionMap.get(task.project_id)?.fps) || 25
+      return (
+        parseInt(this.productionMap.get(task.project_id)?.fps) || DEFAULT_FPS
+      )
     },
 
     entityFrames() {
@@ -68,14 +73,11 @@ export const taskMixin = {
       const newAttachmentFiles = comment.newAttachmentFiles || []
       delete comment.attachmentFilesToDelete
       delete comment.newAttachmentFiles
-      Promise.all(
-        attachmentFilesToDelete
-          .map(attachment => {
-            return { attachment, comment: this.commentToEdit }
-          })
-          .map(this.deleteAttachment)
-      )
-        .then(comment =>
+      func
+        .runPromiseMapAsSeries(attachmentFilesToDelete, attachment =>
+          this.deleteAttachment({ attachment, comment: this.commentToEdit })
+        )
+        .then(() =>
           this.addAttachmentToComment({
             comment: this.commentToEdit,
             files: newAttachmentFiles

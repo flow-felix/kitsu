@@ -20,7 +20,7 @@
         <div class="message-content">
           <div class="message-header-wrapper flexrow">
             <div class="message-sender mr05">
-              {{ personMap.get(chatMessage.data.person_id).name }}
+              {{ personMap.get(chatMessage.data.person_id)?.name }}
             </div>
             <div class="message-date">
               {{ renderDate(chatMessage.data.created_at) }}
@@ -48,7 +48,11 @@
                 class="attachment-thumbnail"
                 :key="attachment.id"
                 :src="getAttachmentThumbnailPath(attachment)"
+                role="button"
+                tabindex="0"
+                :alt="attachment.name"
                 @click="currentAttachment = attachment"
+                @keydown.enter.prevent="currentAttachment = attachment"
                 v-for="attachment in pictureAttachments(
                   messageText.attachment_files
                 )"
@@ -67,7 +71,15 @@
             </div>
             <div
               class="delete-message-button"
+              role="button"
+              tabindex="0"
               @click="$emit('delete-message', chatMessage.data.id)"
+              @keydown.enter.prevent="
+                $emit('delete-message', chatMessage.data.id)
+              "
+              @keydown.space.prevent="
+                $emit('delete-message', chatMessage.data.id)
+              "
               v-if="chatMessage.data.person_id === user.id"
             >
               <x-icon :size="12" />
@@ -95,7 +107,7 @@ import {
   getAttachmentThumbnailPath,
   getDownloadAttachmentPath
 } from '@/lib/path'
-import { parseDate } from '@/lib/time'
+import { formatTimeOfDay, formatVerboseDate, parseDate } from '@/lib/time'
 import { renderComment } from '@/lib/render'
 import files from '@/lib/files'
 
@@ -129,7 +141,13 @@ export default {
   },
 
   computed: {
-    ...mapGetters(['departmentMap', 'personMap', 'user']),
+    ...mapGetters([
+      'dateFormat',
+      'departmentMap',
+      'personMap',
+      'use12HourClock',
+      'user'
+    ]),
 
     messageList() {
       const messages = [...this.messages].sort((a, b) =>
@@ -164,7 +182,7 @@ export default {
             texts: [message ? message : '']
           }
           lastDay = {
-            title: messageDate.format('LL'),
+            title: formatVerboseDate(messageDate, this.dateFormat),
             date: messageDate.format('YYYY-MM-DD'),
             messages: [element]
           }
@@ -182,7 +200,7 @@ export default {
 
     renderDate(date) {
       date = moment(parseDate(date)).tz(this.user.timezone)
-      return date.tz(this.user.timezone).format('HH:mm')
+      return formatTimeOfDay(date, this.use12HourClock)
     },
 
     getAttachmentThumbnailPath,
@@ -307,6 +325,7 @@ export default {
       height: 100px;
       margin-right: 5px;
       margin-top: 10px;
+      overflow: hidden;
       width: 100px;
     }
 

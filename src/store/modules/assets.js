@@ -1,6 +1,7 @@
 import moment from 'moment'
 
 import assetsApi from '@/store/api/assets'
+import entitiesApi from '@/store/api/entities'
 import peopleApi from '@/store/api/people'
 
 import assetTypeStore from '@/store/modules/assettypes'
@@ -11,14 +12,15 @@ import tasksStore from '@/store/modules/tasks'
 import taskStatusStore from '@/store/modules/taskstatus'
 import taskTypesStore from '@/store/modules/tasktypes'
 
-import func from '@/lib/func'
 import { getTaskTypePriorityOfProd } from '@/lib/productions'
 import { minutesToDays } from '@/lib/time'
 import { PAGE_SIZE } from '@/lib/pagination'
 import {
+  insertSortedAsset,
   sortAssetResult,
   sortAssets,
   sortByName,
+  sortByPersonName,
   sortTasks,
   sortValidationColumns
 } from '@/lib/sorting'
@@ -29,7 +31,14 @@ import {
   removeModelFromList
 } from '@/lib/models'
 import { computeStats } from '@/lib/stats'
-import { buildAssetIndex, buildNameIndex, indexSearch } from '@/lib/indexing'
+import {
+  buildAssetIndex,
+  buildNameIndex,
+  getAssetIndexWords,
+  indexSearch,
+  removeEntryFromIndex,
+  updateEntryInIndex
+} from '@/lib/indexing'
 import { applyFilters, getKeyWords, getFilters } from '@/lib/filtering'
 
 import {
@@ -43,6 +52,7 @@ import {
   ADD_ASSET,
   UPDATE_ASSET,
   REMOVE_ASSET,
+  REMOVE_ASSETS,
   CANCEL_ASSET,
   ASSET_CSV_FILE_SELECTED,
   IMPORT_ASSETS_START,
@@ -132,7 +142,7 @@ const helpers = {
     ).toString()
     task.task_status_short_name = helpers.getTaskStatus(
       task.task_status_id
-    ).short_name
+    )?.short_name
 
     Object.assign(task, {
       project_id: asset.production_id,
@@ -179,18 +189,15 @@ const helpers = {
         task = taskMap.get(task)
       }
       if (!task) return
-      task.data = asset.data || {}
       asset.full_name = `${asset.asset_type_name} / ${asset.name}`
       helpers.populateTask(task, asset)
 
       if (task.assignees.length > 1) {
-        task.assignees = task.assignees.sort((a, b) => {
-          return personMap.get(a).name.localeCompare(personMap.get(b).name)
-        })
+        task.assignees = sortByPersonName(task.assignees, personMap)
       }
 
       const taskType = taskTypeMap.get(task.task_type_id)
-      if (!validationColumns[taskType.name]) {
+      if (taskType && !validationColumns[taskType.name]) {
         validationColumns[taskType.name] = task.task_type_id
       }
 
@@ -239,7 +246,13 @@ const helpers = {
     })
     let result = indexSearch(cache.assetIndex, keywords) || cache.assets
     result = applyFilters(result, filters, taskMap)
-    result = sortAssetResult(result, sorting, taskTypeMap, taskMap)
+    result = sortAssetResult(
+      result,
+      sorting,
+      taskTypeMap,
+      taskMap,
+      episodeStore.cache.episodeMap
+    )
     cache.result = result
 
     const limit =
@@ -419,7 +432,7 @@ const actions = {
     }
 
     if (state.isAssetsLoading) {
-      return cache.assets
+      return cache.assetsLoadingPromise || cache.assets
     }
 
     if (all || episode?.id === 'all') {
@@ -427,7 +440,7 @@ const actions = {
     }
 
     commit(LOAD_ASSETS_START)
-    return assetsApi
+    const loadingPromise = assetsApi
       .getAssets(production, episode, withTasks)
       .then(async assets => {
         if (!withShared) {
@@ -452,6 +465,11 @@ const actions = {
             asset.asset_type_name = assetType?.name || ''
           }
         })
+        // Ignore a response for a production the user already switched away
+        // from; committing would overwrite the current production's assets.
+        if (production.id !== rootGetters.currentProduction?.id) {
+          return assets
+        }
         commit(LOAD_ASSETS_END, {
           production,
           assets,
@@ -468,6 +486,8 @@ const actions = {
         commit(LOAD_ASSETS_ERROR)
         return []
       })
+    cache.assetsLoadingPromise = loadingPromise
+    return loadingPromise
   },
 
   getAsset({ commit, state, rootGetters }, assetId) {
@@ -536,16 +556,9 @@ const actions = {
           return workflow.includes(taskTypeId)
         })
       }
-      const createTaskPromises = taskTypeIds.map(taskTypeId => {
-        dispatch('createTask', {
-          entityId: asset.id,
-          projectId: asset.project_id,
-          taskTypeId,
-          type: 'assets'
-        })
-      })
-      return func
-        .runPromiseAsSeries(createTaskPromises)
+      // An empty list means "all valid task types" server-side: skip the call.
+      if (taskTypeIds.length === 0) return asset
+      return dispatch('createEntityTasks', { entityId: asset.id, taskTypeIds })
         .then(() => asset)
         .catch(console.error)
     })
@@ -728,15 +741,19 @@ const actions = {
       }
       let assetLine = []
       if (rootGetters.isTVShow) {
+        // 'MP' is how the importer spells "no episode", so an episode that
+        // fails to resolve must not borrow it: fall back to the raw id.
         assetLine.push(
-          asset.episode_id ? episodeMap.get(asset.episode_id).name : 'MP'
+          asset.episode_id
+            ? (episodeMap.get(asset.episode_id)?.name ?? asset.episode_id)
+            : 'MP'
         )
       }
       assetLine = assetLine.concat([
         asset.asset_type_name,
         asset.name,
         asset.description,
-        asset.ready_for !== 'None' ? taskTypeMap.get(asset.ready_for).name : ''
+        taskTypeMap.get(asset.ready_for)?.name || ''
       ])
       asset.data = asset.data || {}
       sortByName([...production.descriptors])
@@ -746,6 +763,9 @@ const actions = {
             assetLine.push(
               asset.data[descriptor.field_name]?.toLowerCase() === 'true'
             )
+          } else if (descriptor.data_type === 'person') {
+            const person = personMap.get(asset.data[descriptor.field_name])
+            assetLine.push(person ? person.full_name : '')
           } else {
             assetLine.push(asset.data[descriptor.field_name])
           }
@@ -764,7 +784,10 @@ const actions = {
         if (task) {
           assetLine.push(task.task_status_short_name)
           assetLine.push(
-            task.assignees.map(id => personMap.get(id).full_name).join(',')
+            task.assignees
+              .map(id => personMap.get(id)?.full_name)
+              .filter(Boolean)
+              .join(',')
           )
         } else {
           assetLine.push('') // Status
@@ -811,19 +834,33 @@ const actions = {
     commit(CLEAR_SELECTED_ASSETS)
   },
 
-  async deleteSelectedAssets({ state, dispatch }) {
+  async deleteSelectedAssets({ state, commit, rootGetters }) {
     let selectedAssetIds = [...state.selectedAssets.values()]
       .filter(asset => !asset.canceled)
       .map(asset => asset.id)
     if (selectedAssetIds.length === 0) {
       selectedAssetIds = [...state.selectedAssets.keys()]
     }
-    for (const assetId of selectedAssetIds) {
-      const asset = cache.assetMap.get(assetId)
-      if (asset) {
-        await dispatch('deleteAsset', asset)
+    const assets = selectedAssetIds
+      .map(assetId => cache.assetMap.get(assetId))
+      .filter(asset => asset)
+    if (assets.length === 0) return
+    await entitiesApi.deleteEntities(
+      rootGetters.currentProduction.id,
+      assets.map(asset => asset.id)
+    )
+    // Store bookkeeping batched into a single mutation: a per-asset commit
+    // costs a full list pass each.
+    const removedAssets = []
+    const canceledAssets = []
+    assets.forEach(asset => {
+      if (asset.tasks.length > 0 && !asset.canceled) {
+        canceledAssets.push(asset)
+      } else {
+        removedAssets.push(asset)
       }
-    }
+    })
+    commit(REMOVE_ASSETS, { removedAssets, canceledAssets })
   },
 
   async loadSharedAssets({ commit, rootGetters }, { production }) {
@@ -856,18 +893,20 @@ const actions = {
       let isPending = false
       asset.tasks.forEach(taskId => {
         const task = tasksStore.state.taskMap.get(taskId)
-        if (!isPending) {
+        if (task && !isPending) {
           const taskStatus = helpers.getTaskStatus(task.task_status_id)
-          if (daily) {
-            if (task.last_comment_date) {
-              const lastCommentDate = moment(task.last_comment_date)
-              const yesterday = moment().subtract(1, 'days')
-              isPending =
-                taskStatus.is_feedback_request &&
-                lastCommentDate.isAfter(yesterday)
+          if (taskStatus) {
+            if (daily) {
+              if (task.last_comment_date) {
+                const lastCommentDate = moment(task.last_comment_date)
+                const yesterday = moment().subtract(1, 'days')
+                isPending =
+                  taskStatus.is_feedback_request &&
+                  lastCommentDate.isAfter(yesterday)
+              }
+            } else {
+              isPending = taskStatus.is_feedback_request
             }
-          } else {
-            isPending = taskStatus.is_feedback_request
           }
         }
       })
@@ -881,7 +920,7 @@ const mutations = {
   [CLEAR_ASSETS](state) {
     cache.assets = []
     cache.result = []
-    cache.assetMap = new Map()
+    cache.assetMap.clear()
     state.assetValidationColumns = []
 
     cache.assetIndex = {}
@@ -899,7 +938,7 @@ const mutations = {
   [LOAD_ASSETS_START](state) {
     cache.assets = []
     cache.result = []
-    cache.assetMap = new Map()
+    cache.assetMap.clear()
     state.isAssetsLoading = true
     state.isAssetsLoadingError = false
     state.assetValidationColumns = []
@@ -941,7 +980,7 @@ const mutations = {
     cache.assets = assets
     cache.result = assets
     cache.assetIndex = buildAssetIndex(assets)
-    cache.assetMap = new Map()
+    cache.assetMap.clear()
 
     assets.forEach(asset => {
       helpers.populateAndRegisterAsset(
@@ -1047,10 +1086,9 @@ const mutations = {
       {},
       asset
     )
-    cache.assets.push(asset)
-    cache.assets = sortAssets(cache.assets)
+    insertSortedAsset(cache.assets, asset)
     cache.assetMap.set(asset.id, asset)
-    cache.assetIndex = buildAssetIndex(cache.assets)
+    updateEntryInIndex(cache.assetIndex, asset, getAssetIndexWords(asset))
 
     // Test the new asset only against existing filters
     const taskTypes = Array.from(taskTypeMap.values())
@@ -1077,8 +1115,8 @@ const mutations = {
     result = applyFilters(result, filters, taskMap)
 
     if (result && result.length > 0) {
-      state.displayedAssets.push(asset)
-      state.displayedAssets = sortAssets(state.displayedAssets)
+      cache.result.push(asset)
+      insertSortedAsset(state.displayedAssets, asset)
       helpers.setListStats(state, cache.assets)
       state.assetFilledColumns = getFilledColumns(state.displayedAssets)
 
@@ -1090,19 +1128,24 @@ const mutations = {
     const cachedAsset = cache.assetMap.get(asset.id)
     if (cachedAsset) {
       Object.assign(cachedAsset, asset)
+      updateEntryInIndex(
+        cache.assetIndex,
+        cachedAsset,
+        getAssetIndexWords(cachedAsset)
+      )
     }
     const displayedAsset = state.displayedAssets.find(a => a.id === asset.id)
     if (displayedAsset) {
       Object.assign(displayedAsset, asset)
     }
     state.displayedAssets = [...state.displayedAssets]
-    cache.assetIndex = buildAssetIndex(cache.assets)
   },
 
   [REMOVE_ASSET](state, assetToDelete) {
     if (cache.assetMap.get(assetToDelete.id)) {
       cache.assetMap.delete(assetToDelete.id)
       cache.assets = removeModelFromList(cache.assets, assetToDelete)
+      cache.result = removeModelFromList(cache.result, assetToDelete)
       state.displayedAssets = removeModelFromList(
         state.displayedAssets,
         assetToDelete
@@ -1115,8 +1158,35 @@ const mutations = {
       }
       state.assetFilledColumns = getFilledColumns(state.displayedAssets)
       helpers.setListStats(state, cache.assets)
-      cache.assetIndex = buildAssetIndex(cache.assets)
+      removeEntryFromIndex(cache.assetIndex, assetToDelete)
     }
+  },
+
+  // Bulk variant of REMOVE_ASSET/CANCEL_ASSET: one pass over each list and
+  // one stats recompute instead of one per deleted asset. Cancel flags are
+  // set first so the recomputed stats exclude the canceled assets.
+  [REMOVE_ASSETS](state, { removedAssets, canceledAssets }) {
+    canceledAssets.forEach(asset => {
+      asset.canceled = true
+    })
+    const removedIds = new Set()
+    removedAssets.forEach(asset => {
+      if (cache.assetMap.get(asset.id)) {
+        removedIds.add(asset.id)
+        cache.assetMap.delete(asset.id)
+        removeEntryFromIndex(cache.assetIndex, asset)
+      }
+    })
+    cache.assets = cache.assets.filter(asset => !removedIds.has(asset.id))
+    cache.result = cache.result.filter(asset => !removedIds.has(asset.id))
+    state.displayedAssets = state.displayedAssets.filter(
+      asset => !removedIds.has(asset.id)
+    )
+    state.assetFilledColumns = getFilledColumns(state.displayedAssets)
+    helpers.setListStats(state, cache.assets)
+    state.displayedAssetsLength = cache.result.filter(
+      asset => !asset.canceled
+    ).length
   },
 
   [ASSET_CSV_FILE_SELECTED](state, formData) {
@@ -1154,8 +1224,11 @@ const mutations = {
       newAsset.tasks = []
       newAsset.production_id = newAsset.project_id
       newAsset.episode_id = newAsset.source_id
-      cache.assets.push(newAsset)
-      cache.assets = sortAssets(cache.assets)
+      insertSortedAsset(cache.assets, newAsset)
+      // With no active search, cache.result aliases cache.assets
+      // (buildResult / LOAD_ASSETS_END assign the same array), so pushing
+      // here too would insert the new asset twice into the shared array.
+      if (cache.result !== cache.assets) cache.result.push(newAsset)
       state.displayedAssets.push(newAsset)
       state.assetFilledColumns = getFilledColumns(state.displayedAssets)
       state.displayedAssetsLength = cache.assets.filter(a => !a.canceled).length
@@ -1167,7 +1240,12 @@ const mutations = {
     if (newAsset.description && !state.isAssetDescription) {
       state.isAssetDescription = true
     }
-    cache.assetIndex = buildAssetIndex(cache.assets)
+    const indexedAsset = asset || newAsset
+    updateEntryInIndex(
+      cache.assetIndex,
+      indexedAsset,
+      getAssetIndexWords(indexedAsset)
+    )
   },
 
   [CANCEL_ASSET](state, asset) {
@@ -1178,7 +1256,8 @@ const mutations = {
   [RESTORE_ASSET_END](state, assetToRestore) {
     const asset = cache.assetMap.get(assetToRestore.id)
     asset.canceled = false
-    cache.assetIndex = buildAssetIndex(cache.assets)
+    // No index update needed: restoring only flips `canceled`, none of the
+    // indexed words change.
     state.displayedAssetsLength = cache.result.filter(a => !a.canceled).length
   },
 

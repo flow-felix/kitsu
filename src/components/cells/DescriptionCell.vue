@@ -1,5 +1,12 @@
 <template>
-  <td class="description-cell" @keyup.esc="onClick" @click="onClick">
+  <td
+    class="description-cell"
+    role="button"
+    tabindex="0"
+    @keyup.esc="onClick"
+    @click="onClick"
+    @keydown.enter.prevent="onClick"
+  >
     <template v-if="full">
       <div
         class="description-shorten-text"
@@ -11,7 +18,7 @@
       <span
         class="description-shorten-text selectable"
         v-html="
-          renderMarkdown(shortenText(entry.description, 20), {
+          renderMarkdown(entry.description, {
             allowedLinkTag: false
           })
         "
@@ -52,7 +59,6 @@ import { computed, nextTick, ref } from 'vue'
 import { useStore } from 'vuex'
 
 import { renderMarkdown } from '@/lib/render'
-import stringHelpers from '@/lib/string'
 
 const store = useStore()
 
@@ -75,8 +81,6 @@ const tooltipStyle = computed(() => ({
   top: tooltipPosition.value.top + 'px',
   left: tooltipPosition.value.left + 'px'
 }))
-
-const shortenText = stringHelpers.shortenText
 
 const onClick = event => {
   if (
@@ -134,6 +138,19 @@ const onDoubleClick = () => {
 .description-shorten-text {
   min-height: 30px;
   min-width: 100px;
+}
+
+span.description-shorten-text {
+  contain: inline-size;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  // Flatten Markdown for single-line truncation.
+  :deep(*) {
+    display: inline;
+  }
 }
 
 .tooltip {

@@ -133,6 +133,7 @@
       :active="modals.isCreateTasksDisplayed"
       :is-loading="loading.creatingTasks"
       :is-loading-stay="loading.creatingTasksStay"
+      :is-loading-all="loading.creatingAllTasks"
       :is-error="errors.creatingTasks"
       :title="$t('tasks.create_tasks_episode')"
       :text="$t('tasks.create_tasks_episode_explanation')"
@@ -140,6 +141,7 @@
       @cancel="hideCreateTasksModal"
       @confirm="confirmCreateTasks"
       @confirm-and-stay="confirmCreateTasksAndStay"
+      @confirm-all-missing="confirmCreateAllMissingTasks"
     />
 
     <add-metadata-modal
@@ -283,6 +285,7 @@ export default {
         addThumbnails: false,
         creatingTasks: false,
         creatingTasksStay: false,
+        creatingAllTasks: false,
         del: false,
         deleteAllTasks: false,
         deleteMetadata: false,
@@ -339,7 +342,8 @@ export default {
     if (
       this.episodeMap.size < 1 ||
       this.episodeValidationColumns.length === 0 ||
-      this.episodeMap.values().next().project_id !== this.currentProduction.id
+      this.episodeMap.values().next().value?.project_id !==
+        this.currentProduction.id
     ) {
       this.loadEpisodesWithTasks()
         .then(() => {
@@ -498,7 +502,7 @@ export default {
           headers.push(this.$t('main.estimation_short'))
         }
         this.episodeValidationColumns.forEach(taskTypeId => {
-          headers.push(this.taskTypeMap.get(taskTypeId).name)
+          headers.push(this.taskTypeMap.get(taskTypeId)?.name || '')
           headers.push('Assignations')
         })
         csv.buildCsvFile(name, [headers].concat(episodeLines))

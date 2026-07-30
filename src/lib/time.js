@@ -56,6 +56,20 @@ export const formatSimpleDate = date => {
   else return ''
 }
 
+export const formatTimeOfDay = (
+  date,
+  use12HourClock = false,
+  withSeconds = false
+) => {
+  let format
+  if (use12HourClock) {
+    format = withSeconds ? 'h:mm:ss A' : 'h:mm A'
+  } else {
+    format = withSeconds ? 'HH:mm:ss' : 'HH:mm'
+  }
+  return moment(date).format(format)
+}
+
 export const formatFullDate = date => {
   if (date) {
     const utcDate = moment.tz(date, 'UTC')
@@ -81,13 +95,37 @@ export const formatFullDateWithRevertedTimezone = (date, timezone) => {
   return moment.tz(dateString, timezone).tz('UTC').format('YYYY-MM-DDTHH:mm:ss')
 }
 
-export const formatDate = date => {
+export const formatDate = (
+  date,
+  dateFormat = 'YYYY-MM-DD',
+  use12HourClock = false
+) => {
   const utcDate = moment.tz(date, 'UTC')
   if (moment().diff(utcDate, 'days') > 1) {
-    return utcDate.format('YYYY-MM-DD HH:mm')
+    return `${formatDisplayDate(utcDate, dateFormat)} ${formatTimeOfDay(utcDate, use12HourClock)}`
   } else {
     return utcDate.fromNow()
   }
+}
+
+export const DATE_DISPLAY_FORMATS = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY']
+
+export const formatDisplayDate = (date, dateFormat = 'YYYY-MM-DD') => {
+  if (!date) return ''
+  const format = DATE_DISPLAY_FORMATS.includes(dateFormat)
+    ? dateFormat
+    : 'YYYY-MM-DD'
+  return moment(date).format(format)
+}
+
+export const formatShortDate = (date, dateFormat = 'YYYY-MM-DD') => {
+  if (!date) return ''
+  return moment(date).format(dateFormat === 'DD/MM/YYYY' ? 'DD/MM' : 'MM/DD')
+}
+
+export const formatVerboseDate = (date, dateFormat = 'YYYY-MM-DD') => {
+  if (!date) return ''
+  return moment(date).format(dateFormat === 'DD/MM/YYYY' ? 'D MMMM YYYY' : 'LL')
 }
 
 export const monthToString = month => {
@@ -112,8 +150,12 @@ export const getDayRange = (year, month, currentYear, currentMonth) => {
 }
 
 export const getWeekRange = (year, currentYear) => {
-  if (currentYear === year) {
-    return range(1, moment().week())
+  const now = moment()
+  // Late December days can belong to ISO week 1 of the next year: only
+  // truncate the range at the current week when today's ISO week still
+  // belongs to the displayed year.
+  if (currentYear === year && now.isoWeekYear() <= year) {
+    return range(1, now.isoWeek())
   } else {
     return range(1, moment(String(year), 'YYYY').isoWeeksInYear())
   }
@@ -180,7 +222,10 @@ export const getDatesFromStartDate = (
   estimation,
   daysOff = []
 ) => {
-  if (estimation > 0 && !organisation.format_duration_in_hours) {
+  // The estimation is always expressed in days here, whatever the display
+  // preference: skipping the computation for hours-displaying studios left
+  // a null due date that ended up serialized as "Invalid date".
+  if (estimation > 0) {
     dueDate = addBusinessDays(startDate, Math.ceil(estimation) - 1, daysOff)
   }
 
@@ -211,7 +256,8 @@ export const getDatesFromEndDate = (
   estimation,
   daysOff = []
 ) => {
-  if (estimation > 0 && !organisation.format_duration_in_hours) {
+  // Same day-based contract as getDatesFromStartDate.
+  if (estimation > 0) {
     startDate = removeBusinessDays(dueDate, Math.ceil(estimation) - 1, daysOff)
   }
 

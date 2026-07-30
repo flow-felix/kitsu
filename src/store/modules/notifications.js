@@ -80,9 +80,13 @@ const actions = {
     commit(RESET_NOTIFICATION_COUNTER)
   },
 
-  markAllNotificationsAsRead({ commit }) {
+  markAllNotificationsAsRead({ commit, dispatch }) {
     commit(MARK_ALL_NOTIFICATIONS_AS_READ)
-    return notificationsApi.markAllNotificationsAsRead()
+    return notificationsApi.markAllNotificationsAsRead().catch(err => {
+      // No cheap rollback for a bulk toggle: resync from the server.
+      dispatch('loadNotifications')
+      throw err
+    })
   },
 
   markAllNotificationsAsReadLocal({ commit }) {
@@ -92,10 +96,13 @@ const actions = {
 
   toggleNotificationReadStatus({ commit }, notification) {
     commit(TOGGLE_NOTIFICATION_READ_STATUS, notification)
-    return notificationsApi.updateNotificationReadStatus(
-      notification.id,
-      notification.read
-    )
+    return notificationsApi
+      .updateNotificationReadStatus(notification.id, notification.read)
+      .catch(err => {
+        // The mutation toggles: re-committing restores the previous state.
+        commit(TOGGLE_NOTIFICATION_READ_STATUS, notification)
+        throw err
+      })
   },
 
   toggleNotificationReadStatusLocal({ commit }, notification) {
@@ -134,9 +141,9 @@ const mutations = {
   },
 
   [MARK_ALL_NOTIFICATIONS_AS_READ](state) {
-    let notificationCount = state.notificationCount - state.notifications.length
-    if (notificationCount < 0) notificationCount = 0
-    state.notificationCount = notificationCount
+    // The mark-all endpoint clears every notification server-side, not only
+    // the loaded page.
+    state.notificationCount = 0
     state.notifications.forEach(notification => {
       notification.read = true
     })

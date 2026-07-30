@@ -134,6 +134,7 @@
       :active="modals.isCreateTasksDisplayed"
       :is-loading="loading.creatingTasks"
       :is-loading-stay="loading.creatingTasksStay"
+      :is-loading-all="loading.creatingAllTasks"
       :is-error="errors.creatingTasks"
       :title="$t('tasks.create_tasks_sequence')"
       :text="$t('tasks.create_tasks_sequence_explanation')"
@@ -141,6 +142,7 @@
       @cancel="hideCreateTasksModal"
       @confirm="confirmCreateTasks"
       @confirm-and-stay="confirmCreateTasksAndStay"
+      @confirm-all-missing="confirmCreateAllMissingTasks"
     />
 
     <add-metadata-modal
@@ -283,6 +285,7 @@ export default {
         addThumbnails: false,
         creatingTasks: false,
         creatingTasksStay: false,
+        creatingAllTasks: false,
         del: false,
         deleteAllTasks: false,
         deleteMetadata: false,
@@ -343,7 +346,8 @@ export default {
     if (
       this.sequenceMap.size < 1 ||
       this.sequenceValidationColumns.length === 0 ||
-      this.sequenceMap.values().next().project_id !== this.currentProduction.id
+      this.sequenceMap.values().next().value?.project_id !==
+        this.currentProduction.id
     ) {
       this.loadSequencesWithTasks()
         .then(() => {
@@ -502,7 +506,7 @@ export default {
           headers.push(this.$t('main.estimation_short'))
         }
         this.sequenceValidationColumns.forEach(taskTypeId => {
-          headers.push(this.taskTypeMap.get(taskTypeId).name)
+          headers.push(this.taskTypeMap.get(taskTypeId)?.name || '')
           headers.push('Assignations')
         })
         csv.buildCsvFile(name, [headers].concat(sequenceLines))
@@ -630,7 +634,7 @@ export default {
       }
     }
     return {
-      title: `${this.currentProduction.name} | ${this.$t('sequences.title')} - Kitsu`
+      title: `${this.currentProduction?.name || ''} | ${this.$t('sequences.title')} - Kitsu`
     }
   }
 }

@@ -6,7 +6,8 @@ import {
   LOGIN_FAILURE,
   DATA_LOADING_START,
   DATA_LOADING_END,
-  RESET_ALL
+  RESET_ALL,
+  USER_LOGOUT
 } from '@/store/mutation-types'
 import auth from '@/lib/auth'
 import { coerceTwoFactorPayload } from '@/lib/webauthn'
@@ -40,27 +41,33 @@ const actions = {
     commit(CHANGE_PASSWORD, password)
   },
 
-  logIn({ commit, state }, { twoFactorPayload, callback }) {
+  async logIn({ commit, state }, twoFactorPayload) {
     commit(LOGIN_RUN)
     const payload = {
       email: state.email,
       password: state.password,
       ...coerceTwoFactorPayload(twoFactorPayload)
     }
-    auth.logIn(payload, err => {
-      if (err) {
-        commit(LOGIN_FAILURE)
-        callback(err, false)
-      } else {
-        commit(LOGIN_SUCCESS)
-        callback(null, true)
-      }
-    })
+    try {
+      await auth.logIn(payload)
+      commit(LOGIN_SUCCESS)
+    } catch (err) {
+      commit(LOGIN_FAILURE)
+      throw err
+    }
   },
 
   async logout({ commit }) {
     this.$socket.disconnect()
     await auth.logout()
+    commit(RESET_ALL)
+  },
+
+  // Purge this tab's session state without calling the logout API or
+  // re-broadcasting (used when another tab already logged out).
+  logoutLocal({ commit }) {
+    this.$socket.disconnect()
+    commit(USER_LOGOUT)
     commit(RESET_ALL)
   },
 
@@ -91,6 +98,7 @@ const mutations = {
   [LOGIN_SUCCESS](state) {
     state.isLoginLoading = false
     state.isLoginError = false
+    state.password = ''
   },
 
   [LOGIN_FAILURE](state) {

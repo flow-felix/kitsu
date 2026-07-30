@@ -18,10 +18,10 @@
 </template>
 
 <script setup>
-import { marked } from 'marked'
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { renderMarkdown } from '@/lib/render'
 import filesApi from '@/store/api/files'
 
 import Spinner from '@/components/widgets/Spinner.vue'
@@ -51,10 +51,9 @@ const rawContent = ref('')
 
 // Computed
 
-const renderedHtml = computed(() => {
-  if (!rawContent.value) return ''
-  return marked.parse(rawContent.value)
-})
+const renderedHtml = computed(() =>
+  renderMarkdown(rawContent.value, { allowChecklist: true })
+)
 
 // Functions
 
@@ -189,6 +188,15 @@ watch(() => props.preview?.id, loadContent, { immediate: true })
   :deep(ol) {
     padding-left: 2em;
     margin-bottom: 1em;
+  }
+
+  :deep(li):has(> input[type='checkbox']) {
+    list-style: none;
+    margin-left: -1.4em;
+  }
+
+  :deep(input[type='checkbox']) {
+    margin-right: 0.4em;
   }
 
   :deep(hr) {

@@ -7,7 +7,10 @@
           <div
             :key="chat.id"
             :class="chatClass(chat)"
+            role="button"
+            tabindex="0"
             @click="selectChat(chat)"
+            @keydown.enter.prevent="selectChat(chat)"
             v-for="chat in chatList"
           >
             <div class="flexrow">
@@ -145,7 +148,7 @@ export default {
     },
 
     getChatProjectName(chat) {
-      return this.productionMap.get(chat.project_id).name
+      return this.productionMap.get(chat.project_id)?.name
     },
 
     getChatDate(chat) {

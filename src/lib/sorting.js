@@ -5,35 +5,63 @@ import {
   getTaskTypePriorityOfProd
 } from '@/lib/productions'
 
-export const sortAssets = assets => {
-  return assets.sort(
-    firstBy('canceled')
-      .thenBy((a, b) =>
-        a.asset_type_name.localeCompare(b.asset_type_name, undefined, {
-          numeric: true
-        })
-      )
-      .thenBy('shared')
-      .thenBy((a, b) =>
-        a.name.localeCompare(b.name, undefined, { numeric: true })
-      )
-  )
+const sortByEpisode = (a, b) => {
+  if (a.episode_name) {
+    return a.episode_name.localeCompare(b.episode_name, undefined, {
+      numeric: true
+    })
+  }
+  return 0
 }
 
-export const sortShots = shots => {
-  return shots.sort(
-    firstBy('canceled')
-      .thenBy(sortByEpisode)
-      .thenBy((a, b) =>
-        a.sequence_name.localeCompare(b.sequence_name, undefined, {
-          numeric: true
-        })
-      )
-      .thenBy((a, b) =>
-        a.name.localeCompare(b.name, undefined, { numeric: true })
-      )
+const assetComparator = firstBy('canceled')
+  .thenBy((a, b) =>
+    a.asset_type_name.localeCompare(b.asset_type_name, undefined, {
+      numeric: true
+    })
   )
+  .thenBy('shared')
+  .thenBy((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+
+export const sortAssets = assets => {
+  return assets.sort(assetComparator)
 }
+
+const shotComparator = firstBy('canceled')
+  .thenBy(sortByEpisode)
+  .thenBy((a, b) =>
+    a.sequence_name.localeCompare(b.sequence_name, undefined, {
+      numeric: true
+    })
+  )
+  .thenBy((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+
+export const sortShots = shots => {
+  return shots.sort(shotComparator)
+}
+
+// Insert one entity into an already-sorted list (binary search) instead of
+// re-sorting the whole array on every unit add.
+const insertSorted = (items, item, comparator) => {
+  let low = 0
+  let high = items.length
+  while (low < high) {
+    const middle = (low + high) >> 1
+    if (comparator(items[middle], item) <= 0) {
+      low = middle + 1
+    } else {
+      high = middle
+    }
+  }
+  items.splice(low, 0, item)
+  return items
+}
+
+export const insertSortedAsset = (assets, asset) =>
+  insertSorted(assets, asset, assetComparator)
+
+export const insertSortedShot = (shots, shot) =>
+  insertSorted(shots, shot, shotComparator)
 
 export const sortEdits = edits => {
   return edits.sort(
@@ -79,9 +107,13 @@ export const sortTaskNames = (tasks, taskTypeMap) => {
     firstBy((a, b) => {
       const taskTypeA = taskTypeMap.get(a.task_type_id)
       const taskTypeB = taskTypeMap.get(b.task_type_id)
-      return taskTypeA.name.localeCompare(taskTypeB.name, undefined, {
-        numeric: true
-      })
+      return (taskTypeA?.name || '').localeCompare(
+        taskTypeB?.name || '',
+        undefined,
+        {
+          numeric: true
+        }
+      )
     }).thenBy((a, b) => {
       if (a.full_entity_name) {
         return a.full_entity_name.localeCompare(b.full_entity_name, undefined, {
@@ -108,9 +140,13 @@ export const sortTasks = (tasks, taskTypeMap) => {
       .thenBy((a, b) => {
         const taskTypeA = taskTypeMap.get(a.task_type_id)
         const taskTypeB = taskTypeMap.get(b.task_type_id)
-        return taskTypeA.name.localeCompare(taskTypeB.name, undefined, {
-          numeric: true
-        })
+        return (taskTypeA?.name || '').localeCompare(
+          taskTypeB?.name || '',
+          undefined,
+          {
+            numeric: true
+          }
+        )
       })
       .thenBy((a, b) => {
         if (a.full_entity_name) {
@@ -206,12 +242,8 @@ export const sortPlaylists = playlists => {
 export const sortPeople = people => {
   return [...people].sort(
     firstBy('active', -1)
-      .thenBy((a, b) =>
-        a.first_name ? a.first_name.localeCompare(b.first_name) : -1
-      )
-      .thenBy((a, b) =>
-        a.last_name ? a.last_name.localeCompare(b.last_name) : -1
-      )
+      .thenBy((a, b) => (a.first_name || '').localeCompare(b.first_name || ''))
+      .thenBy((a, b) => (a.last_name || '').localeCompare(b.last_name || ''))
   )
 }
 
@@ -219,6 +251,20 @@ export const sortByName = entries => {
   return entries.sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { numeric: true })
   )
+}
+
+// Sort a list of person ids alphabetically by the person's name. Ids missing
+// from a partially loaded personMap sink to the end rather than throwing:
+// callers read assignees[0] as "the" assignee, so a hole must never displace a
+// person who did resolve.
+export const sortByPersonName = (personIds, personMap) => {
+  return personIds.sort((a, b) => {
+    const nameA = personMap.get(a)?.name
+    const nameB = personMap.get(b)?.name
+    if (!nameA) return nameB ? 1 : 0
+    if (!nameB) return -1
+    return nameA.localeCompare(nameB)
+  })
 }
 
 export const sortByValue = entries => {
@@ -251,9 +297,13 @@ export const sortValidationColumns = (
     if (taskTypeAPriority === taskTypeBPriority) {
       const taskTypeA = taskTypeMap.get(a)
       const taskTypeB = taskTypeMap.get(b)
-      return taskTypeA.name.localeCompare(taskTypeB.name, undefined, {
-        numeric: true
-      })
+      return (taskTypeA?.name || '').localeCompare(
+        taskTypeB?.name || '',
+        undefined,
+        {
+          numeric: true
+        }
+      )
     } else if (taskTypeAPriority > taskTypeBPriority) {
       return 1
     }
@@ -264,9 +314,39 @@ export const sortValidationColumns = (
 const compareByName = (a, b) =>
   a.name.localeCompare(b.name, undefined, { numeric: true })
 
+const NUMERIC_FIELDS = new Set(['estimation', 'timeSpent'])
+
+const getFieldValue = (entry, sortInfo, taskTypeMap, episodeMap) => {
+  const value = entry[sortInfo.column]
+  if (sortInfo.column === 'episode_id') {
+    return episodeMap.get(value)?.name || ''
+  }
+  if (sortInfo.column === 'ready_for') {
+    return taskTypeMap.get(value)?.name || ''
+  }
+  if (sortInfo.column === 'resolution') {
+    return entry.data?.resolution || ''
+  }
+  return value || ''
+}
+
+const sortByField = (sortInfo, taskTypeMap, episodeMap) => (a, b) => {
+  const dataA = getFieldValue(a, sortInfo, taskTypeMap, episodeMap)
+  const dataB = getFieldValue(b, sortInfo, taskTypeMap, episodeMap)
+  if (dataA === dataB) return 0
+  if (NUMERIC_FIELDS.has(sortInfo.column)) return dataA - dataB
+  if (!dataB) return -1
+  if (!dataA) return 1
+  return String(dataA).localeCompare(String(dataB), undefined, {
+    numeric: true
+  })
+}
+
 const sortEntityResult = (
   result,
   sorting,
+  taskTypeMap,
+  episodeMap,
   taskMap,
   thenBySteps,
   defaultSort
@@ -276,8 +356,14 @@ const sortEntityResult = (
     const sortEntities =
       sortInfo.type === 'metadata'
         ? sortByMetadata(sortInfo)
-        : sortByTaskType(taskMap, sortInfo)
-    let sorter = firstBy('canceled').thenBy(sortEntities)
+        : sortInfo.type === 'field'
+          ? sortByField(sortInfo, taskTypeMap, episodeMap)
+          : sortByTaskType(taskMap, sortInfo)
+    // ponytail: descending reverses the whole comparator, so empty values
+    // land first instead of last. Special-case empties per direction if that
+    // ordering matters.
+    const direction = sortInfo.ascending === false ? -1 : 1
+    let sorter = firstBy('canceled').thenBy(sortEntities, direction)
     for (const step of thenBySteps) {
       sorter = sorter.thenBy(step)
     }
@@ -288,10 +374,18 @@ const sortEntityResult = (
   return result
 }
 
-export const sortAssetResult = (result, sorting, taskTypeMap, taskMap) => {
+export const sortAssetResult = (
+  result,
+  sorting,
+  taskTypeMap,
+  taskMap,
+  episodeMap
+) => {
   return sortEntityResult(
     result,
     sorting,
+    taskTypeMap,
+    episodeMap,
     taskMap,
     [
       (a, b) =>
@@ -308,6 +402,8 @@ export const sortShotResult = (result, sorting, taskTypeMap, taskMap) => {
   return sortEntityResult(
     result,
     sorting,
+    taskTypeMap,
+    new Map(),
     taskMap,
     [
       sortByEpisode,
@@ -325,6 +421,8 @@ export const sortSequenceResult = (result, sorting, taskTypeMap, taskMap) => {
   return sortEntityResult(
     result,
     sorting,
+    taskTypeMap,
+    new Map(),
     taskMap,
     [sortByEpisode, compareByName],
     sortByName
@@ -332,13 +430,23 @@ export const sortSequenceResult = (result, sorting, taskTypeMap, taskMap) => {
 }
 
 export const sortEpisodeResult = (result, sorting, taskTypeMap, taskMap) => {
-  return sortEntityResult(result, sorting, taskMap, [compareByName], sortByName)
+  return sortEntityResult(
+    result,
+    sorting,
+    taskTypeMap,
+    new Map(),
+    taskMap,
+    [compareByName],
+    sortByName
+  )
 }
 
 export const sortEditResult = (result, sorting, taskTypeMap, taskMap) => {
   return sortEntityResult(
     result,
     sorting,
+    taskTypeMap,
+    new Map(),
     taskMap,
     [sortByEpisode, compareByName],
     sortEdits
@@ -355,7 +463,7 @@ const getMetadataValues = (sortInfo, a, b, defaultValue = '') => {
   return { dataA, dataB }
 }
 
-const sortByMetadata = sortInfo => {
+export const sortByMetadata = sortInfo => {
   if (sortInfo.data_type === 'number') {
     return (a, b) => {
       const { dataA, dataB } = getMetadataValues(sortInfo, a, b)
@@ -376,8 +484,14 @@ const sortByMetadata = sortInfo => {
       if (dataA === dataB) return 0
       if (!dataB) return -1
       if (!dataA) return 1
-      const checklistA = JSON.parse(dataA)
-      const checklistB = JSON.parse(dataB)
+      let checklistA, checklistB
+      try {
+        checklistA = JSON.parse(dataA)
+        checklistB = JSON.parse(dataB)
+      } catch {
+        // Malformed checklist metadata must not break the whole sort.
+        return 0
+      }
       let resultA = 0
       let resultB = 0
       const length = Object.keys(checklistA).length
@@ -412,16 +526,7 @@ const sortByTaskType = (taskMap, sortInfo) => (a, b) => {
   const taskB = b.validations.get(sortInfo.column)
   if (!taskA) return -1
   if (!taskB) return 1
-  const taskStatusA = taskMap.get(taskA).task_status_short_name
-  const taskStatusB = taskMap.get(taskB).task_status_short_name
+  const taskStatusA = taskMap.get(taskA)?.task_status_short_name || ''
+  const taskStatusB = taskMap.get(taskB)?.task_status_short_name || ''
   return taskStatusA.localeCompare(taskStatusB, undefined, { numeric: true })
-}
-
-const sortByEpisode = (a, b) => {
-  if (a.episode_name) {
-    return a.episode_name.localeCompare(b.episode_name, undefined, {
-      numeric: true
-    })
-  }
-  return 0
 }

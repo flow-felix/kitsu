@@ -5,6 +5,7 @@ import { mapGetters } from 'vuex'
 
 import {
   formatDate,
+  formatDisplayDate,
   formatDuration,
   formatFullDate,
   formatSimpleDate
@@ -12,10 +13,16 @@ import {
 
 export const formatListMixin = {
   computed: {
-    ...mapGetters(['organisation']),
+    ...mapGetters(['dateFormat', 'organisation', 'use12HourClock']),
 
     isDurationInHours() {
       return this.organisation.format_duration_in_hours
+    },
+
+    durationUnit() {
+      return this.isDurationInHours
+        ? this.$t('schedule.hours')
+        : this.$t('schedule.md')
     }
   },
 
@@ -24,9 +31,16 @@ export const formatListMixin = {
       return booleanValue ? this.$t('main.yes') : this.$t('main.no')
     },
 
-    formatDate,
     formatFullDate,
     formatSimpleDate,
+
+    formatDate(date) {
+      return formatDate(date, this.dateFormat, this.use12HourClock)
+    },
+
+    formatDisplayDate(date) {
+      return formatDisplayDate(date, this.dateFormat)
+    },
 
     formatDuration(minutes, toLocale = true) {
       return formatDuration(this.organisation, minutes, toLocale)

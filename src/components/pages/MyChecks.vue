@@ -62,7 +62,7 @@
         <div class="flexrow">
           <h1 class="title mt1 flexrow-item filler">
             {{ nbTasksToCheck }}
-            {{ $tc('my_checks.title', nbTasksToCheck) }}
+            {{ $t('my_checks.title', nbTasksToCheck) }}
           </h1>
           <button-simple
             class="flexrow-item"
@@ -86,9 +86,10 @@
     </div>
 
     <view-playlist-modal
-      :active="isPlaylist"
+      active
       :task-ids="sortedTasks.map(t => t.id)"
       @cancel="isPlaylist = false"
+      v-if="isPlaylist"
     />
   </div>
 </template>
@@ -191,7 +192,7 @@ export default {
 
     nbTasksToCheck() {
       return this.sortedTasks.filter(task => {
-        return this.taskStatusMap.get(task.task_status_id).is_feedback_request
+        return this.taskStatusMap.get(task.task_status_id)?.is_feedback_request
       }).length
     },
 
@@ -200,8 +201,9 @@ export default {
       const assigneesMap = {}
       this.tasksToCheck.forEach(task => {
         task.assignees.forEach(personId => {
-          if (!assigneesMap[personId]) {
-            assignees.push(this.personMap.get(personId))
+          const person = this.personMap.get(personId)
+          if (person && !assigneesMap[personId]) {
+            assignees.push(person)
             assigneesMap[personId] = true
           }
         })
@@ -214,7 +216,7 @@ export default {
       const episodeMap = {}
       if (!this.productionId) return []
       const production = this.productionMap.get(this.productionId)
-      if (production.production_type !== 'tvshow') return []
+      if (!production || production.production_type !== 'tvshow') return []
       this.tasksToCheck
         .filter(t => t.project_id === this.productionId)
         .forEach(task => {
@@ -326,9 +328,10 @@ export default {
       const productionIds = {}
       const productionList = []
       tasks.forEach(task => {
-        if (!productionIds[task.project_id]) {
+        const production = this.productionMap.get(task.project_id)
+        if (production && !productionIds[task.project_id]) {
           productionIds[task.project_id] = true
-          productionList.push(this.productionMap.get(task.project_id))
+          productionList.push(production)
         }
       })
       this.productionList = [
@@ -343,9 +346,10 @@ export default {
       const taskTypeIds = {}
       const taskTypeList = []
       tasks.forEach(task => {
-        if (!taskTypeIds[task.task_type_id]) {
+        const taskType = this.taskTypeMap.get(task.task_type_id)
+        if (taskType && !taskTypeIds[task.task_type_id]) {
           taskTypeIds[task.task_type_id] = true
-          taskTypeList.push(this.taskTypeMap.get(task.task_type_id))
+          taskTypeList.push(taskType)
         }
       })
       this.taskTypeList = [
@@ -361,9 +365,10 @@ export default {
       const taskStatusIds = {}
       const taskStatusList = []
       tasks.forEach(task => {
-        if (!taskStatusIds[task.task_status_id]) {
+        const taskStatus = this.taskStatusMap.get(task.task_status_id)
+        if (taskStatus && !taskStatusIds[task.task_status_id]) {
           taskStatusIds[task.task_status_id] = true
-          taskStatusList.push(this.taskStatusMap.get(task.task_status_id))
+          taskStatusList.push(taskStatus)
         }
       })
       this.taskStatusList = [

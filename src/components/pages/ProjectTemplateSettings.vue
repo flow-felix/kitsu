@@ -15,42 +15,90 @@
       <div class="tabs">
         <ul>
           <li :class="{ 'is-active': isActiveTab('parameters') }">
-            <a @click="activeTab = 'parameters'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'parameters'"
+              @keydown.enter.prevent="activeTab = 'parameters'"
+              @keydown.space.prevent="activeTab = 'parameters'"
+            >
               {{ $t('productions.parameters.title') }}
             </a>
           </li>
           <li :class="{ 'is-active': isActiveTab('metadataDescriptors') }">
-            <a @click="activeTab = 'metadataDescriptors'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'metadataDescriptors'"
+              @keydown.enter.prevent="activeTab = 'metadataDescriptors'"
+              @keydown.space.prevent="activeTab = 'metadataDescriptors'"
+            >
               {{ $t('project_templates.tabs.metadata_descriptors') }}
             </a>
           </li>
           <li :class="{ 'is-active': isActiveTab('assetTypes') }">
-            <a @click="activeTab = 'assetTypes'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'assetTypes'"
+              @keydown.enter.prevent="activeTab = 'assetTypes'"
+              @keydown.space.prevent="activeTab = 'assetTypes'"
+            >
               {{ $t('asset_types.title') }}
             </a>
           </li>
           <li :class="{ 'is-active': isActiveTab('taskTypes') }">
-            <a @click="activeTab = 'taskTypes'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'taskTypes'"
+              @keydown.enter.prevent="activeTab = 'taskTypes'"
+              @keydown.space.prevent="activeTab = 'taskTypes'"
+            >
               {{ $t('task_types.title') }}
             </a>
           </li>
           <li :class="{ 'is-active': isActiveTab('taskStatuses') }">
-            <a @click="activeTab = 'taskStatuses'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'taskStatuses'"
+              @keydown.enter.prevent="activeTab = 'taskStatuses'"
+              @keydown.space.prevent="activeTab = 'taskStatuses'"
+            >
               {{ $t('task_status.title') }}
             </a>
           </li>
           <li :class="{ 'is-active': isActiveTab('board') }">
-            <a @click="activeTab = 'board'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'board'"
+              @keydown.enter.prevent="activeTab = 'board'"
+              @keydown.space.prevent="activeTab = 'board'"
+            >
               {{ $t('board.settings.title') }}
             </a>
           </li>
           <li :class="{ 'is-active': isActiveTab('statusAutomations') }">
-            <a @click="activeTab = 'statusAutomations'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'statusAutomations'"
+              @keydown.enter.prevent="activeTab = 'statusAutomations'"
+              @keydown.space.prevent="activeTab = 'statusAutomations'"
+            >
               {{ $t('status_automations.title') }}
             </a>
           </li>
           <li :class="{ 'is-active': isActiveTab('backgrounds') }">
-            <a @click="activeTab = 'backgrounds'">
+            <a
+              role="button"
+              tabindex="0"
+              @click="activeTab = 'backgrounds'"
+              @keydown.enter.prevent="activeTab = 'backgrounds'"
+              @keydown.space.prevent="activeTab = 'backgrounds'"
+            >
               {{ $t('backgrounds.title') }}
             </a>
           </li>
@@ -128,6 +176,10 @@
                 :label="$t('productions.fields.is_publish_default')"
                 v-model="params.is_publish_default_for_artists"
               />
+              <combobox-boolean
+                :label="$t('productions.fields.is_frame_in_numbering')"
+                v-model="params.is_frame_in_numbering"
+              />
               <text-field
                 type="number"
                 :step="1"
@@ -148,6 +200,7 @@
           :task-types="templateTaskTypes"
           :all-task-types="allTaskTypes"
           @add="addTaskType"
+          @import-items="importTaskTypes"
           @remove="removeTaskType"
           @reorder="reorderTaskTypes"
         />
@@ -179,6 +232,7 @@
           :asset-types="templateAssetTypes"
           :all-asset-types="allAssetTypes"
           @add="addAssetType"
+          @import-items="importAssetTypes"
           @remove="removeAssetType"
         />
       </div>
@@ -202,7 +256,14 @@
               :key="tab.name"
               :class="{ 'is-active': metadataEntityTab === tab.name }"
             >
-              <a @click="metadataEntityTab = tab.name">{{ tab.label }}</a>
+              <a
+                role="button"
+                tabindex="0"
+                @click="metadataEntityTab = tab.name"
+                @keydown.enter.prevent="metadataEntityTab = tab.name"
+                @keydown.space.prevent="metadataEntityTab = tab.name"
+                >{{ tab.label }}</a
+              >
             </li>
           </ul>
         </div>
@@ -222,6 +283,12 @@
               <tr>
                 <th class="descriptor-name">
                   {{ $t('project_templates.fields.name') }}
+                </th>
+                <th
+                  class="descriptor-task-type"
+                  v-if="metadataEntityTab === 'Task'"
+                >
+                  {{ $t('tasks.fields.task_type') }}
                 </th>
                 <th class="descriptor-type">{{ $t('main.type') }}</th>
                 <th class="descriptor-for-client">
@@ -243,6 +310,12 @@
                 :key="descriptor.__index"
               >
                 <td class="descriptor-name">{{ descriptor.name }}</td>
+                <td
+                  class="descriptor-task-type"
+                  v-if="metadataEntityTab === 'Task'"
+                >
+                  {{ taskTypeMap.get(descriptor.task_type_id)?.name || '—' }}
+                </td>
                 <td class="descriptor-type">{{ descriptor.data_type }}</td>
                 <td class="descriptor-for-client">
                   {{ descriptor.for_client ? $t('main.yes') : $t('main.no') }}
@@ -296,6 +369,7 @@
       :is-error="errors.saveDescriptor"
       :descriptor-to-edit="descriptorToEdit"
       :entity-type="metadataEntityTab"
+      :task-types="metadataEntityTab === 'Task' ? templateTaskTypes : []"
       @cancel="modals.addMetadata = false"
       @confirm="confirmMetadataModal"
     />
@@ -331,7 +405,6 @@ import {
   PRODUCTION_STYLE_OPTIONS,
   HOME_PAGE_OPTIONS
 } from '@/lib/productions'
-import projectTemplatesApi from '@/store/api/projecttemplates'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -339,7 +412,14 @@ const router = useRouter()
 const store = useStore()
 
 const activeTab = ref('parameters')
-const VALID_METADATA_ENTITIES = ['Asset', 'Shot', 'Sequence', 'Episode', 'Edit']
+const VALID_METADATA_ENTITIES = [
+  'Asset',
+  'Shot',
+  'Sequence',
+  'Episode',
+  'Edit',
+  'Task'
+]
 const initialMetadataEntity = VALID_METADATA_ENTITIES.includes(
   route.query.entity
 )
@@ -358,7 +438,8 @@ const metadataEntityTabs = computed(() => [
   { label: t('shots.title'), name: 'Shot' },
   { label: t('sequences.title'), name: 'Sequence' },
   { label: t('episodes.title'), name: 'Episode' },
-  { label: t('edits.title'), name: 'Edit' }
+  { label: t('edits.title'), name: 'Edit' },
+  { label: t('tasks.tasks'), name: 'Task' }
 ])
 
 const descriptorsForEntity = computed(() => {
@@ -409,6 +490,7 @@ const params = ref({
   is_set_preview_automated: 'false',
   is_single_preview_per_revision: 'false',
   is_publish_default_for_artists: 'false',
+  is_frame_in_numbering: 'false',
   max_retakes: 0
 })
 
@@ -422,6 +504,7 @@ const allAssetTypes = computed(() => store.getters.assetTypes || [])
 const allAutomations = computed(() => store.getters.statusAutomations || [])
 const allBackgrounds = computed(() => store.getters.backgrounds || [])
 const departmentMap = computed(() => store.getters.departmentMap || new Map())
+const taskTypeMap = computed(() => store.getters.taskTypeMap || new Map())
 
 const isActiveTab = tab => activeTab.value === tab
 
@@ -443,12 +526,12 @@ const loadTemplateData = async () => {
   const id = templateId.value
   const [tmpl, taskTypes, taskStatuses, assetTypes, automations, backgrounds] =
     await Promise.all([
-      projectTemplatesApi.getProjectTemplate(id),
-      projectTemplatesApi.getTemplateTaskTypes(id),
-      projectTemplatesApi.getTemplateTaskStatuses(id),
-      projectTemplatesApi.getTemplateAssetTypes(id),
-      projectTemplatesApi.getTemplateStatusAutomations(id),
-      projectTemplatesApi.getTemplateBackgrounds(id)
+      store.dispatch('loadProjectTemplate', id),
+      store.dispatch('loadTemplateTaskTypes', id),
+      store.dispatch('loadTemplateTaskStatuses', id),
+      store.dispatch('loadTemplateAssetTypes', id),
+      store.dispatch('loadTemplateStatusAutomations', id),
+      store.dispatch('loadTemplateBackgrounds', id)
     ])
   template.value = tmpl
   templateTaskTypes.value = taskTypes
@@ -475,6 +558,7 @@ const loadTemplateData = async () => {
     is_publish_default_for_artists: tmpl.is_publish_default_for_artists
       ? 'true'
       : 'false',
+    is_frame_in_numbering: tmpl.is_frame_in_numbering ? 'true' : 'false',
     max_retakes: tmpl.max_retakes || 0
   }
   // Build roles map from task status link data (if available from API)
@@ -510,7 +594,7 @@ const saveParameters = async () => {
   loading.parameters = true
   errors.parameters = false
   try {
-    await projectTemplatesApi.editProjectTemplate({
+    await store.dispatch('editProjectTemplate', {
       id: templateId.value,
       name: template.value.name,
       description: template.value.description,
@@ -523,7 +607,8 @@ const saveParameters = async () => {
       is_single_preview_per_revision:
         params.value.is_single_preview_per_revision === 'true',
       is_publish_default_for_artists:
-        params.value.is_publish_default_for_artists === 'true'
+        params.value.is_publish_default_for_artists === 'true',
+      is_frame_in_numbering: params.value.is_frame_in_numbering === 'true'
     })
   } catch {
     errors.parameters = true
@@ -544,118 +629,147 @@ watch(
 
 const onUpdateBoardRoles = async ({ taskStatusId, roles }) => {
   boardRoles.value = { ...boardRoles.value, [taskStatusId]: roles }
-  await projectTemplatesApi.addTaskStatusToTemplate(
-    templateId.value,
+  await store.dispatch('addTaskStatusToTemplate', {
+    templateId: templateId.value,
     taskStatusId,
-    null,
-    roles
-  )
+    priority: null,
+    rolesForBoard: roles
+  })
 }
 
 const addTaskType = async taskTypeId => {
-  await projectTemplatesApi.addTaskTypeToTemplate(templateId.value, taskTypeId)
+  await store.dispatch('addTaskTypeToTemplate', {
+    templateId: templateId.value,
+    taskTypeId
+  })
   await loadTemplateData()
 }
 
 const removeTaskType = async taskTypeId => {
-  await projectTemplatesApi.removeTaskTypeFromTemplate(
-    templateId.value,
+  await store.dispatch('removeTaskTypeFromTemplate', {
+    templateId: templateId.value,
     taskTypeId
-  )
+  })
   await loadTemplateData()
 }
 
 const reorderTaskTypes = async ordered => {
-  for (const { taskTypeId, priority } of ordered) {
-    await projectTemplatesApi.addTaskTypeToTemplate(
-      templateId.value,
-      taskTypeId,
-      priority
-    )
-  }
+  await store.dispatch('reorderTemplateTaskTypes', {
+    templateId: templateId.value,
+    taskTypeIds: ordered.map(item => item.taskTypeId)
+  })
   await loadTemplateData()
 }
 
 const addTaskStatus = async taskStatusId => {
-  await projectTemplatesApi.addTaskStatusToTemplate(
-    templateId.value,
+  await store.dispatch('addTaskStatusToTemplate', {
+    templateId: templateId.value,
     taskStatusId
-  )
+  })
   await loadTemplateData()
 }
 
 const removeTaskStatus = async taskStatusId => {
-  await projectTemplatesApi.removeTaskStatusFromTemplate(
-    templateId.value,
+  await store.dispatch('removeTaskStatusFromTemplate', {
+    templateId: templateId.value,
     taskStatusId
-  )
+  })
   await loadTemplateData()
 }
 
 const reorderTaskStatuses = async ordered => {
-  for (const { taskStatusId, priority } of ordered) {
-    await projectTemplatesApi.addTaskStatusToTemplate(
-      templateId.value,
-      taskStatusId,
-      priority
-    )
-  }
+  await store.dispatch('reorderTemplateTaskStatuses', {
+    templateId: templateId.value,
+    taskStatusIds: ordered.map(item => item.taskStatusId)
+  })
   await loadTemplateData()
 }
 
 const addAssetType = async assetTypeId => {
-  await projectTemplatesApi.addAssetTypeToTemplate(
-    templateId.value,
+  await store.dispatch('addAssetTypeToTemplate', {
+    templateId: templateId.value,
     assetTypeId
-  )
+  })
   await loadTemplateData()
 }
 
+// Template routes are per id: keep the loop but reload the template data
+// once at the end instead of once per imported item.
+const importTaskTypes = async ({ ids, done }) => {
+  try {
+    for (const taskTypeId of ids) {
+      await store.dispatch('addTaskTypeToTemplate', {
+        templateId: templateId.value,
+        taskTypeId
+      })
+    }
+    await loadTemplateData()
+  } catch (err) {
+    console.error(err)
+  }
+  done()
+}
+
+const importAssetTypes = async ({ ids, done }) => {
+  try {
+    for (const assetTypeId of ids) {
+      await store.dispatch('addAssetTypeToTemplate', {
+        templateId: templateId.value,
+        assetTypeId
+      })
+    }
+    await loadTemplateData()
+  } catch (err) {
+    console.error(err)
+  }
+  done()
+}
+
 const removeAssetType = async assetTypeId => {
-  await projectTemplatesApi.removeAssetTypeFromTemplate(
-    templateId.value,
+  await store.dispatch('removeAssetTypeFromTemplate', {
+    templateId: templateId.value,
     assetTypeId
-  )
+  })
   await loadTemplateData()
 }
 
 const addAutomation = async automationId => {
-  await projectTemplatesApi.addStatusAutomationToTemplate(
-    templateId.value,
-    automationId
-  )
+  await store.dispatch('addStatusAutomationToTemplate', {
+    templateId: templateId.value,
+    statusAutomationId: automationId
+  })
   await loadTemplateData()
 }
 
 const removeAutomation = async automationId => {
-  await projectTemplatesApi.removeStatusAutomationFromTemplate(
-    templateId.value,
-    automationId
-  )
+  await store.dispatch('removeStatusAutomationFromTemplate', {
+    templateId: templateId.value,
+    statusAutomationId: automationId
+  })
   await loadTemplateData()
 }
 
 const addBackground = async backgroundId => {
-  await projectTemplatesApi.addBackgroundToTemplate(
-    templateId.value,
+  await store.dispatch('addBackgroundToTemplate', {
+    templateId: templateId.value,
     backgroundId
-  )
+  })
   await loadTemplateData()
 }
 
 const removeBackground = async backgroundId => {
-  await projectTemplatesApi.removeBackgroundFromTemplate(
-    templateId.value,
+  await store.dispatch('removeBackgroundFromTemplate', {
+    templateId: templateId.value,
     backgroundId
-  )
+  })
   await loadTemplateData()
 }
 
 const setDefaultBackground = async backgroundId => {
-  await projectTemplatesApi.setTemplateDefaultBackground(
-    templateId.value,
+  await store.dispatch('setTemplateDefaultBackground', {
+    templateId: templateId.value,
     backgroundId
-  )
+  })
   await loadTemplateData()
 }
 
@@ -663,6 +777,7 @@ const cleanDescriptors = () =>
   descriptors.value.map(d => ({
     name: d.name,
     entity_type: d.entity_type,
+    task_type_id: d.task_type_id || null,
     data_type: d.data_type,
     choices: d.choices || [],
     for_client: Boolean(d.for_client),
@@ -672,10 +787,10 @@ const cleanDescriptors = () =>
   }))
 
 const persistDescriptors = async () => {
-  await projectTemplatesApi.setTemplateMetadataDescriptors(
-    templateId.value,
-    cleanDescriptors()
-  )
+  await store.dispatch('setTemplateMetadataDescriptors', {
+    templateId: templateId.value,
+    descriptors: cleanDescriptors()
+  })
   await loadTemplateData()
 }
 
@@ -699,6 +814,7 @@ const openEditDescriptor = index => {
     id: `template-descriptor-${index}`,
     name: d.name,
     data_type: d.data_type,
+    task_type_id: d.task_type_id ?? null,
     for_client: Boolean(d.for_client),
     choices: [...(d.choices || [])],
     departments: [...(d.departments || [])]
@@ -718,6 +834,7 @@ const confirmMetadataModal = async form => {
     name: form.name,
     data_type: form.data_type,
     entity_type: metadataEntityTab.value,
+    task_type_id: form.task_type_id ?? null,
     choices: form.values || [],
     for_client: form.for_client === 'true',
     departments: form.departments || []
@@ -726,6 +843,7 @@ const confirmMetadataModal = async form => {
     if (descriptorToEditIndex.value >= 0) {
       const existing = descriptors.value[descriptorToEditIndex.value]
       entry.entity_type = existing.entity_type
+      entry.task_type_id = form.task_type_id ?? existing.task_type_id
       entry.field_name = existing.field_name
       entry.position = existing.position
       descriptors.value[descriptorToEditIndex.value] = entry

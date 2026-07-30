@@ -203,6 +203,7 @@
       :active="modals.isCreateTasksDisplayed"
       :is-loading="loading.creatingTasks"
       :is-loading-stay="loading.creatingTasksStay"
+      :is-loading-all="loading.creatingAllTasks"
       :is-error="errors.creatingTasks"
       :title="$t('tasks.create_tasks_edit')"
       :text="$t('tasks.create_tasks_edit_explanation')"
@@ -210,6 +211,7 @@
       @cancel="hideCreateTasksModal"
       @confirm="confirmCreateTasks"
       @confirm-and-stay="confirmCreateTasksAndStay"
+      @confirm-all-missing="confirmCreateAllMissingTasks"
     />
 
     <add-metadata-modal
@@ -348,6 +350,7 @@ export default {
         addThumbnails: false,
         creatingTasks: false,
         creatingTasksStay: false,
+        creatingAllTasks: false,
         deleteAllTasks: false,
         deleteMetadata: false,
         edit: false,
@@ -457,8 +460,13 @@ export default {
     },
 
     filteredEdits() {
+      // Build the lookup from the full edit cache, not the filtered display
+      // list, so the import creation check sees every edit.
+      // The cache Map is not reactive: depend on displayedEdits (updated
+      // by the same mutations) to invalidate this computed.
+      this.displayedEdits // eslint-disable-line no-unused-expressions
       const edits = {}
-      this.displayedEdits.forEach(edit => {
+      this.editMap.forEach(edit => {
         let editKey = ''
         if (
           this.isTVShow &&
@@ -699,7 +707,7 @@ export default {
           headers.push(this.$t('main.estimation_short'))
         }
         this.editValidationColumns.forEach(taskTypeId => {
-          headers.push(this.taskTypeMap.get(taskTypeId).name)
+          headers.push(this.taskTypeMap.get(taskTypeId)?.name || '')
           headers.push('Assignations')
         })
         csv.buildCsvFile(name, [headers].concat(editLines))
@@ -784,7 +792,7 @@ export default {
       }
     }
     return {
-      title: `${this.currentProduction.name} ${this.$t('edits.title')} - Kitsu`
+      title: `${this.currentProduction ? this.currentProduction.name : ''} ${this.$t('edits.title')} - Kitsu`
     }
   }
 }

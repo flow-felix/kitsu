@@ -15,7 +15,11 @@
         class="tag"
         :style="tagStyle"
         :title="taskStatus.name"
+        role="button"
+        tabindex="0"
         @click="$event => $emit('click', $event)"
+        @keydown.enter.prevent="$event => $emit('click', $event)"
+        @keydown.space.prevent="$event => $emit('click', $event)"
         v-else
       >
         {{ taskStatus.short_name }}
@@ -53,7 +57,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useStore } from 'vuex'
 import colors from '@/lib/colors'
-import { pluralizeEntityType } from '@/lib/path'
+import { getTaskRouteEntity, pluralizeEntityType } from '@/lib/path'
 import { useTaskStatusStyle } from '@/composables/taskStatus'
 
 const { t } = useI18n()
@@ -66,7 +70,7 @@ const {
 
 const props = defineProps({
   task: {
-    default: () => {},
+    default: () => ({}),
     type: Object
   },
   isStatic: {
@@ -179,7 +183,7 @@ const taskPath = computed(() => {
   }
 
   const taskType = taskTypeMap.value.get(task.task_type_id)
-  route.params.type = pluralizeEntityType(taskType.for_entity)
+  route.params.type = pluralizeEntityType(getTaskRouteEntity(task, taskType))
 
   return route
 })

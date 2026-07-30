@@ -9,9 +9,9 @@
 
     <div class="modal-content">
       <div class="box">
-        <h1 class="title" v-if="commentToEdit && commentToEdit.id">
+        <h2 class="title" v-if="commentToEdit && commentToEdit.id">
           {{ $t('comments.edit_title') }}
-        </h1>
+        </h2>
 
         <form @submit.prevent>
           <combobox-status
@@ -119,7 +119,13 @@
               v-for="(attachment, index) in form.attachment_files"
             >
               {{ attachment.name }}
-              <span @click="removeAttachment(attachment)">
+              <span
+                role="button"
+                tabindex="0"
+                @click="removeAttachment(attachment)"
+                @keydown.enter.prevent="removeAttachment(attachment)"
+                @keydown.space.prevent="removeAttachment(attachment)"
+              >
                 <x-icon :size="12" />
               </span>
             </div>
@@ -138,7 +144,14 @@
             v-for="(attachment, index) in attachmentFiles"
           >
             {{ attachment.get('file').name }}
-            <span @click="removeNewAttachment(attachment)">x</span>
+            <span
+              role="button"
+              tabindex="0"
+              @click="removeNewAttachment(attachment)"
+              @keydown.enter.prevent="removeNewAttachment(attachment)"
+              @keydown.space.prevent="removeNewAttachment(attachment)"
+              >x</span
+            >
           </div>
         </div>
 
@@ -173,6 +186,7 @@ import { computed, ref, toRef, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStore } from 'vuex'
 
+import { useAtMentionsMembers } from '@/composables/atMentions'
 import { useModal } from '@/composables/modal'
 import files from '@/lib/files'
 import { remove } from '@/lib/models'
@@ -206,12 +220,16 @@ const emit = defineEmits(['cancel', 'confirm'])
 
 useModal(toRef(props, 'active'), emit)
 
+const { membersForAts, atOptionsFilter } = useAtMentionsMembers(
+  () => props.team,
+  () => props.taskTypes
+)
+
 const extensions = files.ALL_EXTENSIONS_STRING
 
 const attachmentFiles = ref([])
 const attachmentFilesToDelete = ref([])
 const inputLink = ref(null)
-const membersForAts = ref({ '@': [], '#': [] })
 const textField = ref(null)
 const form = ref({
   text: '',
@@ -220,13 +238,8 @@ const form = ref({
   link: null
 })
 
-const departmentMap = computed(() => store.getters.departmentMap)
 const getTaskStatusForCurrentUser = computed(
   () => store.getters.getTaskStatusForCurrentUser
-)
-const isCurrentUserClient = computed(() => store.getters.isCurrentUserClient)
-const productionDepartmentIds = computed(
-  () => store.getters.productionDepartmentIds
 )
 const taskStatusForCurrentUser = computed(
   () => store.getters.taskStatusForCurrentUser
@@ -320,13 +333,6 @@ const onInsertChecklistItem = item => {
   })
 }
 
-const atOptionsFilter = (name, chunk, at, v) => {
-  // filter the list by the given at symbol (@ for team, # for task type)
-  const expectedAt = v?.isTaskType ? '#' : '@'
-  if (at !== expectedAt) return false
-  return name?.toLowerCase().indexOf(chunk.toLowerCase()) > -1
-}
-
 const onAtTextChanged = input => {
   if (input.includes('@frame')) {
     form.value.text = replaceTimeWithTimecode(
@@ -350,56 +356,6 @@ watch(
       }, 100)
     }
   }
-)
-
-watch(
-  () => props.taskTypes,
-  values => {
-    const taskTypeOptions = values.map(taskType => ({
-      isTaskType: true,
-      full_name: taskType.name,
-      color: taskType.color,
-      id: taskType.id,
-      url: taskType.url
-    }))
-    taskTypeOptions.push({
-      isTaskType: true,
-      color: '#000',
-      full_name: 'All'
-    })
-    membersForAts.value['#'] = taskTypeOptions
-  },
-  { immediate: true }
-)
-
-watch(
-  () => props.team,
-  () => {
-    let teamOptions
-    if (isCurrentUserClient.value) {
-      teamOptions = [
-        props.team.filter(person =>
-          ['admin', 'manager', 'supervisor', 'client'].includes(person.role)
-        )
-      ]
-    } else {
-      teamOptions = [...props.team]
-    }
-    teamOptions = teamOptions.concat(
-      productionDepartmentIds.value.map(departmentId => {
-        const department = departmentMap.value.get(departmentId)
-        return {
-          isDepartment: true,
-          full_name: department.name,
-          color: department.color,
-          id: departmentId
-        }
-      })
-    )
-    teamOptions.push({ isTime: true, full_name: 'frame' })
-    membersForAts.value['@'] = teamOptions
-  },
-  { immediate: true }
 )
 </script>
 

@@ -2,9 +2,9 @@ import { shallowMount } from '@vue/test-utils'
 import { createStore } from 'vuex'
 import { createRouter, createWebHistory } from 'vue-router'
 
-// The project aliases `moment` to moment-with-locales, which moment-timezone
-// does not augment under vitest, so `.tz()` is missing. Shim it to a no-op
-// chainable for the date rendering used by the component.
+// The component imports bare `moment` without the timezone plugin loaded in
+// this test, so `.tz()` is missing. Shim it to a no-op chainable for the date
+// rendering used by the component.
 vi.mock('moment', async () => {
   const actual = await vi.importActual('moment')
   const moment = actual.default || actual
@@ -111,14 +111,14 @@ describe('Comment attachments', () => {
   })
 
   it('renders a paperclip download link for other files', () => {
-    const links = wrapper.findAll('a.flexrow')
+    const links = wrapper.findAll('a.attachment-file-link')
     const pdfLink = links.find(link => link.text().includes('doc.pdf'))
     expect(pdfLink).toBeTruthy()
   })
 
   it('does not render a paperclip download link for audio/video files', () => {
     const linkText = wrapper
-      .findAll('a.flexrow')
+      .findAll('a.attachment-file-link')
       .map(link => link.text())
       .join(' ')
     expect(linkText).not.toContain('voice.wav')

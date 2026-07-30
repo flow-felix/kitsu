@@ -12,17 +12,29 @@
       <x-circle-icon
         class="action-icon"
         :size="20"
+        role="button"
+        tabindex="0"
         @click="cancelCurrentTwoFactorAuthAction"
+        @keydown.enter.prevent="cancelCurrentTwoFactorAuthAction"
+        @keydown.space.prevent="cancelCurrentTwoFactorAuthAction"
       />
       <save-icon
         class="action-icon"
         :size="20"
+        role="button"
+        tabindex="0"
         @click="saveRecoveryCodesToFile"
+        @keydown.enter.prevent="saveRecoveryCodesToFile"
+        @keydown.space.prevent="saveRecoveryCodesToFile"
       />
       <copy-icon
         class="action-icon"
         :size="20"
+        role="button"
+        tabindex="0"
         @click="copyRecoveryCodesToClipboard"
+        @keydown.enter.prevent="copyRecoveryCodesToClipboard"
+        @keydown.space.prevent="copyRecoveryCodesToClipboard"
       />
       <textarea
         class="input recovery-codes"
@@ -112,13 +124,13 @@
           </p>
           <div class="two-fa-flow-actions">
             <button
-              class="button cancel-flow-button is-medium"
+              class="button cancel-flow-button"
               @click="cancelCurrentTwoFactorAuthAction"
             >
               {{ $t('main.cancel') }}
             </button>
             <button
-              class="button save-button is-medium"
+              class="button save-button"
               :class="{ 'is-loading': twoFA.loadingAction === 'enableTOTP' }"
               @click="nextEnable()"
             >
@@ -144,7 +156,7 @@
         <div v-else class="two-fa-card-actions">
           <button
             v-if="!user.totp_enabled"
-            class="button two-fa-action enable-action is-medium"
+            class="button two-fa-action enable-action"
             :class="{
               'is-disabled': twoFAButtonsDisabled,
               'is-loading': twoFA.loadingAction === 'preEnableTOTP'
@@ -155,7 +167,7 @@
           </button>
           <button
             v-else
-            class="button two-fa-action disable-action is-medium"
+            class="button two-fa-action disable-action"
             :class="{
               'is-disabled': twoFAButtonsDisabled
             }"
@@ -215,13 +227,13 @@
           </p>
           <div class="two-fa-flow-actions">
             <button
-              class="button cancel-flow-button is-medium"
+              class="button cancel-flow-button"
               @click="cancelCurrentTwoFactorAuthAction"
             >
               {{ $t('main.cancel') }}
             </button>
             <button
-              class="button save-button is-medium"
+              class="button save-button"
               :class="{
                 'is-loading': twoFA.loadingAction === 'enableEmailOTP'
               }"
@@ -249,7 +261,7 @@
         <div v-else class="two-fa-card-actions">
           <button
             v-if="!user.email_otp_enabled"
-            class="button two-fa-action enable-action is-medium"
+            class="button two-fa-action enable-action"
             :class="{
               'is-disabled': twoFAButtonsDisabled,
               'is-loading': twoFA.loadingAction === 'preEnableEmailOTP'
@@ -262,7 +274,7 @@
           </button>
           <button
             v-else
-            class="button two-fa-action disable-action is-medium"
+            class="button two-fa-action disable-action"
             :class="{
               'is-disabled': twoFAButtonsDisabled
             }"
@@ -326,13 +338,13 @@
           </p>
           <div class="two-fa-flow-actions">
             <button
-              class="button cancel-flow-button is-medium"
+              class="button cancel-flow-button"
               @click="cancelCurrentTwoFactorAuthAction"
             >
               {{ $t('main.cancel') }}
             </button>
             <button
-              class="button save-button is-medium"
+              class="button save-button"
               :class="{ 'is-loading': twoFA.loadingAction === 'registerFIDO' }"
               @click="registerFIDORequested()"
             >
@@ -343,7 +355,7 @@
 
         <div v-else class="two-fa-card-actions">
           <button
-            class="button two-fa-action enable-action is-medium"
+            class="button two-fa-action enable-action"
             :class="{
               'is-disabled': twoFAButtonsDisabled
             }"
@@ -357,7 +369,7 @@
 
     <button
       v-if="twoFAEnabled && !twoFA.newRecoveryCodesNeedTwoFA"
-      class="two-fa-button button save-button is-medium"
+      class="two-fa-button button save-button"
       :class="{
         'is-disabled': twoFAButtonsDisabled
       }"
@@ -388,7 +400,11 @@
         <trash-icon
           class="action-icon pull-right"
           :size="15"
+          role="button"
+          tabindex="0"
           @click="unregisterFIDORequested(device)"
+          @keydown.enter.prevent="unregisterFIDORequested(device)"
+          @keydown.space.prevent="unregisterFIDORequested(device)"
         />
       </li>
     </ul>
@@ -418,6 +434,8 @@ import {
   TrashIcon,
   XCircleIcon
 } from 'lucide-vue-next'
+
+import { downloadBlob } from '@/lib/download'
 
 import TextField from '@/components/widgets/TextField.vue'
 import TwoFactorAuthentication from '@/components/widgets/TwoFactorAuthentication.vue'
@@ -754,11 +772,7 @@ const saveRecoveryCodesToFile = () => {
   const blob = new Blob([twoFA.OTPRecoveryCodes.join('\n')], {
     type: 'text/plain;charset=utf-8'
   })
-  const link = document.createElement('a')
-  link.setAttribute('href', URL.createObjectURL(blob))
-  link.setAttribute('download', 'kitsu-recovery-codes.txt')
-  document.body.appendChild(link)
-  link.click()
+  downloadBlob(blob, 'kitsu-recovery-codes.txt')
 }
 
 const changedTwoFA = () => {

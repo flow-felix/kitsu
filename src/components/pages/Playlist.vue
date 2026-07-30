@@ -237,7 +237,14 @@
             <div class="flexrow">
               <page-subtitle class="flexrow-item" :text="addEntitiesText" />
               <span class="filler"></span>
-              <a class="close-button" @click="toggleAddEntities">
+              <a
+                class="close-button"
+                role="button"
+                tabindex="0"
+                @click="toggleAddEntities"
+                @keydown.enter.prevent="toggleAddEntities"
+                @keydown.space.prevent="toggleAddEntities"
+              >
                 <x-icon />
               </a>
             </div>
@@ -362,8 +369,12 @@
                       playlisted: currentEntitiesMap[asset.id] !== undefined
                     }"
                     draggable="true"
+                    role="button"
+                    tabindex="0"
                     @dragstart="onEntityDragStart($event, asset)"
                     @click.prevent="addEntityToPlaylist(asset)"
+                    @keydown.enter.prevent="addEntityToPlaylist(asset)"
+                    @keydown.space.prevent="addEntityToPlaylist(asset)"
                     v-for="asset in typeAssets.filter(a => !a.canceled)"
                   >
                     <div
@@ -391,8 +402,12 @@
                     playlisted: currentEntitiesMap[sequence.id] !== undefined
                   }"
                   draggable="true"
+                  role="button"
+                  tabindex="0"
                   @dragstart="onEntityDragStart($event, sequence)"
                   @click.prevent="addEntityToPlaylist(sequence)"
+                  @keydown.enter.prevent="addEntityToPlaylist(sequence)"
+                  @keydown.space.prevent="addEntityToPlaylist(sequence)"
                   v-for="sequence in displayedSequences.filter(
                     s => !s.canceled
                   )"
@@ -434,8 +449,12 @@
                     playlisted: currentEntitiesMap[edit.id] !== undefined
                   }"
                   draggable="true"
+                  role="button"
+                  tabindex="0"
                   @dragstart="onEntityDragStart($event, edit)"
                   @click.prevent="addEntityToPlaylist(edit)"
+                  @keydown.enter.prevent="addEntityToPlaylist(edit)"
+                  @keydown.space.prevent="addEntityToPlaylist(edit)"
                   v-for="edit in displayedEdits.filter(e => !e.canceled)"
                 >
                   <div
@@ -473,8 +492,12 @@
                     playlisted: currentEntitiesMap[episode.id] !== undefined
                   }"
                   draggable="true"
+                  role="button"
+                  tabindex="0"
                   @dragstart="onEntityDragStart($event, episode)"
                   @click.prevent="addEntityToPlaylist(episode)"
+                  @keydown.enter.prevent="addEntityToPlaylist(episode)"
+                  @keydown.space.prevent="addEntityToPlaylist(episode)"
                   v-for="episode in displayedEpisodes.filter(e => !e.canceled)"
                 >
                   <div
@@ -530,8 +553,12 @@
                         playlisted: currentEntitiesMap[shot.id] !== undefined
                       }"
                       draggable="true"
+                      role="button"
+                      tabindex="0"
                       @dragstart="onEntityDragStart($event, shot)"
                       @click.prevent="addEntityToPlaylist(shot)"
+                      @keydown.enter.prevent="addEntityToPlaylist(shot)"
+                      @keydown.space.prevent="addEntityToPlaylist(shot)"
                     >
                       <div
                         class="entity-loading-spinner"
@@ -595,9 +622,8 @@ import moment from 'moment-timezone'
 import { mapGetters, mapActions } from 'vuex'
 import { PlusIcon, XIcon } from 'lucide-vue-next'
 
-import playlistsApi from '@/store/api/playlists'
 import { DEFAULT_NB_FRAMES_PICTURE } from '@/lib/playlist'
-import { formatDate } from '@/lib/time'
+import { formatDate as formatDateBase } from '@/lib/time'
 import { getPlaylistPath } from '@/lib/path'
 import { updateModelFromList, removeModelFromList } from '@/lib/models'
 import { sortAssets, sortShots } from '@/lib/sorting'
@@ -699,6 +725,7 @@ export default {
       'assetSearchText',
       'currentEpisode',
       'currentProduction',
+      'dateFormat',
       'displayedAssets',
       'displayedAssetsByType',
       'displayedEdits',
@@ -721,7 +748,8 @@ export default {
       'shotSearchText',
       'taskMap',
       'taskStatusMap',
-      'taskTypeMap'
+      'taskTypeMap',
+      'use12HourClock'
     ]),
 
     isAdditionLoading() {
@@ -822,6 +850,7 @@ export default {
 
   methods: {
     ...mapActions([
+      'addEntitiesToPlaylist',
       'changePlaylistOrder',
       'changePlaylistPreview',
       'changePlaylistType',
@@ -868,7 +897,7 @@ export default {
     // Helpers
 
     formatDate(dateString) {
-      return formatDate(dateString)
+      return formatDateBase(dateString, this.dateFormat, this.use12HourClock)
     },
 
     isCurrentProjectEvent(eventData) {
@@ -976,7 +1005,10 @@ export default {
     async loadShareLinksCount(playlistId) {
       if (!this.isCurrentUserManager || !playlistId) return
       try {
-        const links = await playlistsApi.getShareLinks(playlistId)
+        const links = await this.$store.dispatch(
+          'loadPlaylistShareLinks',
+          playlistId
+        )
         this.currentShareLinksCount = links.length
       } catch {
         this.currentShareLinksCount = 0
@@ -1301,7 +1333,7 @@ export default {
 
     // Addition Helpers
 
-    addCurrentSelection() {
+    async addCurrentSelection() {
       this.setSilent()
       let entities
       if (this.isAssetPlaylist) {
@@ -1313,88 +1345,112 @@ export default {
       } else {
         entities = this.displayedShots
       }
-      this.addEntities([...entities].reverse(), () => {
+      try {
+        await this.addEntities(entities)
+      } finally {
         this.clearSilent()
-      })
+      }
     },
 
-    addSequence(sequenceShots) {
+    async addSequence(sequenceShots) {
       if (sequenceShots.length > 0) {
         const sequenceId = sequenceShots[0].sequence_id
         const shots = Array.from(shotStore.cache.shotMap.values())
           .filter(s => s.sequence_id === sequenceId)
           .sort(firstBy('name'))
-          .reverse()
         this.setSilent()
-        this.addEntities(shots, () => {
+        try {
+          await this.addEntities(shots)
+        } finally {
           this.clearSilent()
-        })
+        }
       }
     },
 
     async addAllPending() {
       this.setSilent()
       this.loading.addWeekly = true
-      const getPending = this.isAssetPlaylist
-        ? this.getPendingAssets
-        : this.getPendingShots
-      const sortEntities = this.isAssetPlaylist ? sortAssets : sortShots
-      let entities = await getPending(false)
-      entities = sortEntities(entities).reverse()
-      this.addEntities(entities, () => {
+      try {
+        const getPending = this.isAssetPlaylist
+          ? this.getPendingAssets
+          : this.getPendingShots
+        const sortEntities = this.isAssetPlaylist ? sortAssets : sortShots
+        const entities = await getPending(false)
+        await this.addEntities(sortEntities(entities))
+      } finally {
         this.loading.addWeekly = false
         this.clearSilent()
-      })
+      }
     },
 
     async addDailyPending() {
       this.loading.addDaily = true
       this.setSilent()
-      const getPending = this.isAssetPlaylist
-        ? this.getPendingAssets
-        : this.getPendingShots
-      const sortEntities = this.isAssetPlaylist ? sortAssets : sortShots
-      let entities = await getPending(true)
-      entities = sortEntities(entities).reverse()
-      this.addEntities(entities, () => {
+      try {
+        const getPending = this.isAssetPlaylist
+          ? this.getPendingAssets
+          : this.getPendingShots
+        const sortEntities = this.isAssetPlaylist ? sortAssets : sortShots
+        const entities = await getPending(true)
+        await this.addEntities(sortEntities(entities))
+      } finally {
         this.loading.addDaily = false
         this.clearSilent()
-      })
+      }
     },
 
-    addEpisodePending() {
+    async addEpisodePending() {
       this.loading.addEpisode = true
       this.setSilent()
-      let shots = [].concat(...this.shotsByEpisode)
-      shots = sortShots(shots).reverse()
-      this.addEntities(shots, () => {
+      try {
+        const shots = [].concat(...this.shotsByEpisode)
+        await this.addEntities(sortShots(shots))
+      } finally {
         this.loading.addEpisode = false
         this.clearSilent()
-      })
+      }
     },
 
-    addMovie() {
+    async addMovie() {
       this.loading.addMovie = true
       this.setSilent()
-      const shots = sortShots(Array.from(shotStore.cache.shotMap.values()))
-      this.addEntities(shots.reverse(), () => {
+      try {
+        const shots = sortShots(Array.from(shotStore.cache.shotMap.values()))
+        await this.addEntities(shots)
+      } finally {
         this.loading.addMovie = false
         this.clearSilent()
-      })
+      }
     },
 
-    addEntities(entities, callback, playlist = undefined) {
-      if (!playlist) {
-        playlist = this.currentPlaylist
-      }
-      if (entities && entities.length > 0) {
-        this.entitiesAddedWhilePanelOpen = true
-        const entity = entities.pop()
-        this.addEntity(entity, playlist).then(() => {
-          this.addEntities(entities, callback, playlist)
+    async addEntities(entities) {
+      // Captured once: keep adding to the playlist the user started from,
+      // even if they switch playlists mid-sequence.
+      const playlist = this.currentPlaylist
+      if (!entities?.length) return
+      this.entitiesAddedWhilePanelOpen = true
+      entities.forEach(entity => {
+        this.entityLoading[entity.id] = true
+      })
+      try {
+        await this.addEntitiesToPlaylist({
+          playlist,
+          entityIds: entities.map(entity => entity.id)
         })
-      } else {
-        callback()
+        if (playlist.id === this.currentPlaylist.id) {
+          const loadedPlaylist = await this.loadPlaylist(playlist)
+          this.currentPlaylist = ref(loadedPlaylist)
+          this.rebuildCurrentEntities()
+          this.$nextTick(() => {
+            this.playlistPlayer?.scrollToRight()
+          })
+        }
+      } catch (err) {
+        console.error(err)
+      } finally {
+        entities.forEach(entity => {
+          this.entityLoading[entity.id] = false
+        })
       }
     },
 
@@ -1433,7 +1489,8 @@ export default {
           updates
         })
         playlistPlayer?.confirmAnnotationsSaved()
-      } catch {
+      } catch (err) {
+        console.error('Failed to save annotations', err)
         playlistPlayer?.restoreFailedAnnotations()
       }
     },

@@ -4,15 +4,15 @@ Start developing for Kitsu using Docker on Windows, Linux and macOS.
 
 **Prerequisites**
 
-- [Node.js >= 22.22.1](https://nodejs.org)
+- [Node.js >= 22.22.2](https://nodejs.org)
 - [Docker >= 1.13](https://store.docker.com/search?type=edition&offering=community)
 
 **Setup**
 
 ```bash
 docker run -d --rm -p 80:80 --name cgwire cgwire/cgwire
-export KITSU_API_TARGET=http://$(docker-machine ip)/api
-export KITSU_EVENT_TARGET=http://$(docker-machine ip)/socket.io
+export KITSU_API_TARGET=http://localhost/api
+export KITSU_EVENT_TARGET=http://localhost/socket.io
 git clone https://github.com/cgwire/kitsu.git
 cd kitsu
 npm install

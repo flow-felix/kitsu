@@ -1,7 +1,8 @@
 import moment from 'moment'
 
-import peopleApi from '@/store/api/people'
 import editsApi from '@/store/api/edits'
+import entitiesApi from '@/store/api/entities'
+import peopleApi from '@/store/api/people'
 
 import peopleStore from '@/store/modules/people'
 import productionsStore from '@/store/modules/productions'
@@ -9,11 +10,11 @@ import tasksStore from '@/store/modules/tasks'
 import taskTypesStore from '@/store/modules/tasktypes'
 import taskStatusStore from '@/store/modules/taskstatus'
 
-import func from '@/lib/func'
 import { PAGE_SIZE } from '@/lib/pagination'
 import { getTaskTypePriorityOfProd } from '@/lib/productions'
 import {
   sortByName,
+  sortByPersonName,
   sortEditResult,
   sortEdits,
   sortTasks,
@@ -69,6 +70,8 @@ import {
 const cache = {
   edits: [],
   editIndex: [],
+  editsLoadingPromise: null,
+  editsLoadingKey: null,
   editMap: new Map(),
   result: []
 }
@@ -105,7 +108,7 @@ const helpers = {
     ).toString()
     task.task_status_short_name = helpers.getTaskStatus(
       task.task_status_id
-    ).short_name
+    )?.short_name
 
     const editName = helpers.getEditName(edit)
     Object.assign(task, {
@@ -345,14 +348,31 @@ const actions = {
       episode = null
     }
 
+    const loadingKey = `${production.id}/${episode?.id ?? ''}`
     if (state.isEditsLoading) {
-      return Promise.resolve([])
+      if (cache.editsLoadingKey === loadingKey) {
+        // Same production+episode already loading: share the in-flight load
+        // so concurrent callers (e.g. schedule expands) await the same edits.
+        return cache.editsLoadingPromise || Promise.resolve([])
+      }
+      // A different production/episode is in flight (e.g. the user switched
+      // episode mid-load): wait for it to settle, then run our own load so
+      // the newly selected episode's edits are actually fetched.
+      return (cache.editsLoadingPromise || Promise.resolve([])).then(() =>
+        dispatch('loadEdits')
+      )
     }
 
     commit(LOAD_EDITS_START)
-    return editsApi
+    cache.editsLoadingKey = loadingKey
+    const loadingPromise = editsApi
       .getEdits(production, episode)
       .then(edits => {
+        // Ignore a response for a production the user already switched away
+        // from; committing would overwrite the current production's edits.
+        if (production.id !== rootGetters.currentProduction?.id) {
+          return edits
+        }
         commit(LOAD_EDITS_END, {
           production,
           edits,
@@ -368,6 +388,8 @@ const actions = {
         commit(LOAD_EDITS_ERROR)
         return []
       })
+    cache.editsLoadingPromise = loadingPromise
+    return loadingPromise
   },
 
   /*
@@ -414,16 +436,9 @@ const actions = {
     return editsApi.newEdit(edit).then(edit => {
       commit(NEW_EDIT_END, edit)
       const taskTypeIds = rootGetters.productionEditTaskTypeIds
-      const createTaskPromises = taskTypeIds.map(taskTypeId =>
-        dispatch('createTask', {
-          entityId: edit.id,
-          projectId: edit.project_id,
-          taskTypeId: taskTypeId,
-          type: 'edits'
-        })
-      )
-      return func
-        .runPromiseAsSeries(createTaskPromises)
+      // An empty list means "all valid task types" server-side: skip the call.
+      if (taskTypeIds.length === 0) return edit
+      return dispatch('createEntityTasks', { entityId: edit.id, taskTypeIds })
         .then(() => edit)
         .catch(console.error)
     })
@@ -542,6 +557,9 @@ const actions = {
             editLine.push(
               edit.data[descriptor.field_name]?.toLowerCase() === 'true'
             )
+          } else if (descriptor.data_type === 'person') {
+            const person = personMap.get(edit.data[descriptor.field_name])
+            editLine.push(person ? person.full_name : '')
           } else {
             editLine.push(edit.data[descriptor.field_name])
           }
@@ -559,7 +577,10 @@ const actions = {
         if (task) {
           editLine.push(task.task_status_short_name)
           editLine.push(
-            task.assignees.map(id => personMap.get(id).full_name).join(',')
+            task.assignees
+              .map(id => personMap.get(id)?.full_name)
+              .filter(Boolean)
+              .join(',')
           )
         } else {
           editLine.push('') // Status
@@ -596,7 +617,7 @@ const actions = {
           const endDateString = helpers.getTaskEndDate(task, detailLevel)
           return (
             task &&
-            taskStatus.is_done &&
+            taskStatus?.is_done &&
             task.assignees.includes(personId) &&
             endDateString === dateString
           )
@@ -646,19 +667,28 @@ const actions = {
     commit(CLEAR_SELECTED_EDITS)
   },
 
-  async deleteSelectedEdits({ state, dispatch }) {
+  async deleteSelectedEdits({ state, commit, rootGetters }) {
     let selectedEditIds = [...state.selectedEdits.values()]
       .filter(edit => !edit.canceled)
       .map(edit => edit.id)
     if (selectedEditIds.length === 0) {
       selectedEditIds = [...state.selectedEdits.keys()]
     }
-    for (const editId of selectedEditIds) {
-      const edit = cache.editMap.get(editId)
-      if (edit) {
-        await dispatch('deleteEdit', edit)
+    const edits = selectedEditIds
+      .map(editId => cache.editMap.get(editId))
+      .filter(edit => edit)
+    if (edits.length === 0) return
+    await entitiesApi.deleteEntities(
+      rootGetters.currentProduction.id,
+      edits.map(edit => edit.id)
+    )
+    edits.forEach(edit => {
+      if (edit.tasks.length > 0 && !edit.canceled) {
+        commit(CANCEL_EDIT, edit)
+      } else {
+        commit(REMOVE_EDIT, edit)
       }
-    }
+    })
   }
 }
 
@@ -667,7 +697,7 @@ const mutations = {
     cache.edits = []
     cache.result = []
     cache.editIndex = {}
-    cache.editMap = new Map()
+    cache.editMap.clear()
     state.editValidationColumns = []
 
     state.isEditsLoading = true
@@ -696,7 +726,7 @@ const mutations = {
     let isTime = false
     let isEstimation = false
     let isResolution = false
-    cache.editMap = new Map()
+    cache.editMap.clear()
     edits.forEach(edit => {
       const taskIds = []
       const validations = new Map()
@@ -715,13 +745,11 @@ const mutations = {
         taskIds.push(task.id)
 
         const taskType = taskTypeMap.get(task.task_type_id)
-        if (!validationColumns[taskType.name]) {
+        if (taskType && !validationColumns[taskType.name]) {
           validationColumns[taskType.name] = taskType.id
         }
         if (task.assignees.length > 1) {
-          task.assignees = task.assignees.sort((a, b) => {
-            return personMap.get(a).name.localeCompare(personMap.get(b))
-          })
+          task.assignees = sortByPersonName(task.assignees, personMap)
         }
       })
       edit.tasks = taskIds
@@ -1040,9 +1068,7 @@ const mutations = {
       taskIds.push(task.id)
 
       if (task.assignees.length > 1) {
-        task.assignees = task.assignees.sort((a, b) => {
-          return personMap.get(a).name.localeCompare(personMap.get(b))
-        })
+        task.assignees = sortByPersonName(task.assignees, personMap)
       }
     })
     edit.tasks = taskIds

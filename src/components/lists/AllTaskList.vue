@@ -55,7 +55,10 @@
               'datatable-row': true,
               selected: selectionGrid[task.id]
             }"
+            role="button"
+            tabindex="0"
             @click="selectTask($event, index, task)"
+            @keydown.enter.prevent="selectTask($event, index, task)"
             v-for="(task, index) in tasks"
           >
             <td class="project">
@@ -120,13 +123,13 @@
               {{ formatDuration(task.duration) }}
             </td>
             <td class="start-date">
-              {{ formatDate(task.start_date) }}
+              {{ formatDisplayDate(task.start_date) }}
             </td>
             <td class="due-date">
-              {{ formatDate(task.due_date) }}
+              {{ formatDisplayDate(task.due_date) }}
             </td>
             <td class="done-date">
-              {{ formatDate(task.done_date) }}
+              {{ formatDisplayDate(task.done_date) }}
             </td>
             <td class="empty"></td>
           </tr>
@@ -151,22 +154,22 @@
     </div>
     <p class="has-text-centered nb-tasks" v-if="!isLoading">
       {{ stats.total }}
-      {{ $tc('tasks.number', stats.total) }}
+      {{ $t('tasks.number', stats.total) }}
       ({{ formatDuration(stats.total_duration) }}
       {{
         isDurationInHours
-          ? $tc('main.hours_spent', formatDuration(stats.total_duration, false))
-          : $tc('main.days_spent', formatDuration(stats.total_duration, false))
+          ? $t('main.hours_spent', formatDuration(stats.total_duration, false))
+          : $t('main.days_spent', formatDuration(stats.total_duration, false))
       }}
       /
       {{ formatDuration(stats.total_estimation) }}
       {{
         isDurationInHours
-          ? $tc(
+          ? $t(
               'main.hours_estimated',
               formatDuration(stats.total_estimation, false)
             )
-          : $tc(
+          : $t(
               'main.days_estimated',
               formatDuration(stats.total_estimatio, false)
             )
@@ -304,11 +307,6 @@ export default {
 
     getDate(date) {
       return date ? moment(date, 'YYYY-MM-DD').toDate() : null
-    },
-
-    formatDate(date) {
-      if (date) return moment(date).format('YYYY-MM-DD')
-      return ''
     },
 
     isEstimationBurned(task) {

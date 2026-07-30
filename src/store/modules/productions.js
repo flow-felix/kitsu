@@ -12,7 +12,6 @@ import {
   removeModelFromList,
   updateModelFromList
 } from '@/lib/models'
-import stringHelpers from '@/lib/string'
 import {
   LOAD_PRODUCTIONS_START,
   LOAD_PRODUCTIONS_ERROR,
@@ -298,8 +297,11 @@ const getters = {
   },
 
   remainingStatusAutomations: (state, getters, rootState, rootGetters) => {
+    // Archived automations are hidden from the main settings list: they
+    // must not stay addable from the production settings either.
     return rootState.statusAutomations.statusAutomations.filter(
       s =>
+        !s.archived &&
         !state.currentProduction.status_automations.includes(s.id) &&
         !rootGetters.isStatusAutomationDisabled(s)
     )
@@ -347,6 +349,7 @@ const getters = {
   sequenceMetadataDescriptors: entityMetadataDescriptors('Sequence'),
   episodeMetadataDescriptors: entityMetadataDescriptors('Episode'),
   editMetadataDescriptors: entityMetadataDescriptors('Edit'),
+  taskMetadataDescriptors: entityMetadataDescriptors('Task'),
 
   /**
    * Union of all Project-entity metadata descriptors (field definitions) that
@@ -470,25 +473,11 @@ const actions = {
     })
   },
 
-  async newProduction({ commit, dispatch, getters }, data) {
+  async newProduction({ commit }, data) {
+    // Zou copies the all-projects metadata columns (Project descriptors)
+    // onto the new production at creation, no client-side copy needed.
     const production = await productionsApi.newProduction(data)
     commit(ADD_PRODUCTION, production)
-    // The all-projects metadata columns are one descriptor row per project in
-    // Zou: copy them onto the new production so its cells stay editable.
-    try {
-      await Promise.all(
-        getters.mergedProjectMetadataDescriptors.map(descriptor =>
-          dispatch('ensureProjectMetadataDescriptor', {
-            production,
-            descriptor
-          })
-        )
-      )
-    } catch (err) {
-      // The production itself is created and a missing descriptor is
-      // recreated on first cell edit, so don't fail the creation flow.
-      console.error(err)
-    }
     return production
   },
 
@@ -603,6 +592,38 @@ const actions = {
     )
   },
 
+  /**
+   * Attach task types, task statuses and asset types to the current
+   * production in a single request. With replaceTaskTypes, taskTypes is the
+   * full wanted set: task type links absent from it are removed.
+   */
+  async addSettingsToProduction(
+    { commit, state },
+    {
+      taskTypes = [],
+      taskStatusIds = [],
+      assetTypeIds = [],
+      replaceTaskTypes = false
+    }
+  ) {
+    const production = await productionsApi.addSettingsToProduction(
+      state.currentProduction.id,
+      { taskTypes, taskStatusIds, assetTypeIds, replaceTaskTypes }
+    )
+    if (replaceTaskTypes) {
+      const wantedIds = taskTypes.map(({ taskTypeId }) => taskTypeId)
+      state.currentProduction.task_types
+        .filter(id => !wantedIds.includes(id))
+        .forEach(id => commit(PRODUCTION_REMOVE_TASK_TYPE, id))
+    }
+    taskTypes.forEach(({ taskTypeId }) =>
+      commit(PRODUCTION_ADD_TASK_TYPE, taskTypeId)
+    )
+    taskStatusIds.forEach(id => commit(PRODUCTION_ADD_TASK_STATUS, id))
+    assetTypeIds.forEach(id => commit(PRODUCTION_ADD_ASSET_TYPE, id))
+    return production
+  },
+
   addStatusAutomationToProduction({ commit, state }, statusAutomationId) {
     commit(PRODUCTION_ADD_STATUS_AUTOMATION, statusAutomationId)
     return productionsApi.addStatusAutomationToProduction(
@@ -624,7 +645,7 @@ const actions = {
       const previousDescriptorFieldName =
         state.currentProduction.descriptors.find(
           d => d.id === descriptor.id
-        ).field_name
+        )?.field_name
       return productionsApi
         .updateMetadataDescriptor(state.currentProduction.id, descriptor)
         .then(descriptor => {
@@ -667,81 +688,48 @@ const actions = {
     { commit, state },
     descriptor
   ) {
-    // Drop projectId — this action fans out to every loaded project.
+    // Drop projectId — one request applies the column to every accessible
+    // project server-side, skipping those that already own it.
     // eslint-disable-next-line no-unused-vars
     const { projectId, ...toSend } = descriptor
-    // Cell rendering and the update/delete fan-outs key on field_name (Zou
-    // slugifies it from the name), so dedupe on it too; the name check stays
-    // as a guard for slugs that diverge from Zou's.
-    const fieldName = stringHelpers.slugify(toSend.name)
-    const targets = (state.productions || []).filter(
-      production =>
-        !(production.descriptors || []).some(
-          d =>
-            d.entity_type === 'Project' &&
-            (d.field_name === fieldName || d.name === toSend.name)
-        )
-    )
-    await Promise.all(
-      targets.map(async production => {
-        const created = await productionsApi.addMetadataDescriptor(
-          production.id,
-          toSend
-        )
-        const target =
-          findProductionInState(state, created.project_id) || production
+    const created =
+      await productionsApi.addMetadataDescriptorToAllProjects(toSend)
+    created.forEach(newDescriptor => {
+      const production = findProductionInState(state, newDescriptor.project_id)
+      if (production) {
         commit(ADD_METADATA_DESCRIPTOR_END, {
-          production: target,
-          descriptor: created
+          production,
+          descriptor: newDescriptor
         })
-      })
-    )
+      }
+    })
   },
 
   async updateProjectMetadataOnAll({ commit, state }, { fieldName, form }) {
-    // Strip id/projectId — each pair gets its own descriptor id below.
     // eslint-disable-next-line no-unused-vars
     const { id, projectId, ...formFields } = form
-    const pairs = (state.productions || [])
-      .map(production => {
-        const descriptor = (production.descriptors || []).find(
-          d => d.entity_type === 'Project' && d.field_name === fieldName
-        )
-        return descriptor ? { production, descriptor } : null
-      })
-      .filter(Boolean)
-    await Promise.all(
-      pairs.map(async ({ production, descriptor }) => {
-        const updated = await productionsApi.updateMetadataDescriptor(
-          production.id,
-          { ...formFields, id: descriptor.id, entity_type: 'Project' }
-        )
-        commit(UPDATE_METADATA_DESCRIPTOR_END, {
-          production: findProductionInState(state, production.id) || production,
-          descriptor: updated
-        })
-      })
+    const updated = await productionsApi.updateMetadataDescriptorOnAllProjects(
+      fieldName,
+      {
+        ...formFields,
+        entity_type: 'Project'
+      }
     )
+    updated.forEach(descriptor => {
+      const production = findProductionInState(state, descriptor.project_id)
+      if (production) {
+        commit(UPDATE_METADATA_DESCRIPTOR_END, { production, descriptor })
+      }
+    })
   },
 
-  async deleteProjectMetadataByFieldName({ commit, state }, fieldName) {
-    const pairs = (state.productions || [])
-      .map(production => {
-        const descriptor = (production.descriptors || []).find(
-          d => d.entity_type === 'Project' && d.field_name === fieldName
-        )
-        return descriptor ? { production, descriptor } : null
-      })
-      .filter(Boolean)
-    await Promise.all(
-      pairs.map(async ({ production, descriptor }) => {
-        await productionsApi.deleteMetadataDescriptor(
-          production.id,
-          descriptor.id
-        )
-        commit(DELETE_METADATA_DESCRIPTOR_END, { id: descriptor.id })
-      })
-    )
+  async deleteProjectMetadataByFieldName({ commit }, fieldName) {
+    const removedIds =
+      await productionsApi.deleteMetadataDescriptorOnAllProjects(
+        fieldName,
+        'Project'
+      )
+    removedIds.forEach(id => commit(DELETE_METADATA_DESCRIPTOR_END, { id }))
   },
 
   /**
@@ -844,35 +832,19 @@ const actions = {
     { entityType, fieldOrder }
   ) {
     if (!fieldOrder?.length || !entityType) return
-    const projects = (state.productions || []).filter(production =>
-      (production.descriptors || []).some(d => d.entity_type === entityType)
-    )
-    await Promise.all(
-      projects.map(async production => {
-        const projectDescs = production.descriptors.filter(
-          d => d.entity_type === entityType
-        )
-        const byField = new Map(projectDescs.map(d => [d.field_name, d]))
-        const orderedIds = fieldOrder
-          .map(fieldName => byField.get(fieldName)?.id)
-          .filter(Boolean)
-        const remaining = projectDescs
-          .map(d => d.id)
-          .filter(id => !orderedIds.includes(id))
-        const updated = await productionsApi.reorderMetadataDescriptors(
-          production.id,
-          entityType,
-          [...orderedIds, ...remaining]
-        )
-        updated.forEach(descriptor => {
-          commit(UPDATE_METADATA_DESCRIPTOR_END, {
-            production:
-              findProductionInState(state, descriptor.project_id) || production,
-            descriptor
-          })
-        })
-      })
-    )
+    // The server applies the field order on every accessible project and
+    // keeps unlisted columns at trailing positions.
+    const updated =
+      await productionsApi.reorderMetadataDescriptorsOnAllProjects(
+        entityType,
+        fieldOrder
+      )
+    updated.forEach(descriptor => {
+      const production = findProductionInState(state, descriptor.project_id)
+      if (production) {
+        commit(UPDATE_METADATA_DESCRIPTOR_END, { production, descriptor })
+      }
+    })
   },
 
   async addBackgroundToProduction({ commit, state }, backgroundId) {

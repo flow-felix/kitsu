@@ -173,6 +173,16 @@ const actions = {
     return await taskTypesApi.updateTaskTypeLink(data)
   },
 
+  reorderTaskTypeLinks({ commit }, { projectId, taskTypeIds }) {
+    if (!taskTypeIds?.length) return Promise.resolve()
+    return taskTypesApi.reorderTaskTypeLinks(projectId, taskTypeIds)
+  },
+
+  reorderTaskTypes({ commit }, taskTypeIds) {
+    if (!taskTypeIds?.length) return Promise.resolve()
+    return taskTypesApi.reorderTaskTypes(taskTypeIds)
+  },
+
   deleteTaskType({ commit, state }, taskType) {
     commit(DELETE_TASK_TYPE_START)
     return taskTypesApi.deleteTaskType(taskType).then(() => {
@@ -279,6 +289,7 @@ const mutations = {
 
   [RESET_ALL](state) {
     Object.assign(state, { ...initialState })
+    cache.taskTypeMap.clear()
   }
 }
 

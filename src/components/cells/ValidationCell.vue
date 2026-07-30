@@ -7,7 +7,10 @@
       validation: selectable
     }"
     :style="cellStyle"
+    role="button"
+    tabindex="0"
     @click="onClick"
+    @keydown.enter.prevent="onClick"
   >
     <div class="wrapper full-wrapper" :style="wrapperStyle" v-if="!minimized">
       <div class="filler" v-if="contactSheet"></div>
@@ -39,8 +42,16 @@
             :title="castingTitle"
             v-if="!isCurrentUserClient && castingTitle"
           >
-            <img src="@/assets/icons/casting-ready.png" v-if="isCastingReady" />
-            <img src="@/assets/icons/casting-not-ready.png" v-else />
+            <img
+              src="@/assets/icons/casting-ready.png"
+              :alt="castingTitle"
+              v-if="isCastingReady"
+            />
+            <img
+              src="@/assets/icons/casting-not-ready.png"
+              :alt="castingTitle"
+              v-else
+            />
           </span>
         </template>
         <template v-if="isAssignees && !isCurrentUserClient && !disabled">
@@ -57,7 +68,7 @@
           >
             <img
               loading="lazy"
-              alt=""
+              :alt="person.full_name"
               :src="person.avatarPath"
               v-if="person.has_avatar"
             />
@@ -143,13 +154,16 @@ const assignees = computed(() =>
 const priority = computed(() => formatPrioritySymbol(task.value.priority))
 
 const cellStyle = computed(() => {
+  // the column is null when its task type is no longer in the task type map
+  const columnColor = props.column?.color
   let backgroundColor
-  if (props.isBorder && !props.sticked) {
+  if (props.isBorder && !props.sticked && columnColor) {
     const opacity = isDarkTheme.value ? 0.15 : 0.08
-    backgroundColor = colors.hexToRGBa(props.column.color, opacity)
+    backgroundColor = colors.hexToRGBa(columnColor, opacity)
   }
   return {
-    borderLeft: props.isBorder ? `1px solid ${props.column.color}` : 'none',
+    borderLeft:
+      props.isBorder && columnColor ? `1px solid ${columnColor}` : 'none',
     backgroundColor,
     left: props.left
   }

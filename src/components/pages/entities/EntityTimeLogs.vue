@@ -27,7 +27,7 @@
         <tbody class="datatable-body">
           <tr :key="log.id" class="datatable-row" v-for="log in logs">
             <td class="date">
-              {{ formatSimpleDate(log.date) }}
+              {{ formatDisplayDate(log.date) }}
             </td>
             <people-name-cell
               class="person"
@@ -100,7 +100,7 @@ export default {
 
     getTaskType(log) {
       const task = this.taskMap.get(log.task_id)
-      return this.taskTypeMap.get(task.task_type_id)
+      return task && this.taskTypeMap.get(task.task_type_id)
     },
 
     reset() {

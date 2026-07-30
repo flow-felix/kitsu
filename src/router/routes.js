@@ -89,81 +89,48 @@ const Timesheets = () => import('@/components/pages/Timesheets.vue')
 const Todos = () => import('@/components/pages/Todos.vue')
 const WrongBrowser = () => import('@/components/pages/WrongBrowser.vue')
 
-const ADMIN_PAGES = [
-  'asset-types',
-  'backgrounds',
-  'bots',
-  'custom-actions',
-  'departments',
-  'logs',
-  'main-schedule',
-  'newsfeed',
-  'people',
-  'productions',
-  'salary-scale',
-  'task-status',
-  'task-types',
-  'team-schedule',
-  'settings',
-  'status-automations',
-  'studios',
-  'project-templates',
-  'project-template-settings'
-]
-
 export const routes = [
   {
     path: '',
     name: 'home',
     component: Main,
 
-    beforeEnter: (to, from, next) => {
+    beforeEnter: async (to, from) => {
       const browser = Bowser.getParser(window.navigator.userAgent)
       const isValidBrowser = browser.satisfies({
         // see https://vitejs.dev/guide/build.html#browser-compatibility + ES2020 support
         chrome: '>=87',
         firefox: '>=79',
-        edge: '>90',
+        edge: '>=91',
         vivaldi: '>=3.5',
         opera: '>=73',
         safari: '>=14'
       })
       if (!isValidBrowser) {
-        return next({ name: 'wrong-browser' })
+        return { name: 'wrong-browser' }
       }
 
-      auth.requireAuth(to, from, nextPath => {
-        if (nextPath) {
-          next(nextPath)
-        } else {
-          timezone.setTimezone()
-          lang.setLocale(userStore.state.user.locale)
-          sentry.setContext(
-            peopleStore.state.organisation,
-            userStore.state.user
-          )
-          if (store.state.productions.openProductions.length === 0) {
-            init(err => {
-              if (err) {
-                next({ name: 'server-down' })
-              } else {
-                if (!userStore.getters.isCurrentUserArtist(userStore.state)) {
-                  next({ name: 'open-productions' })
-                } else {
-                  next({ name: 'todos' })
-                }
-              }
-            })
-          } else {
-            store.commit('DATA_LOADING_END')
-            if (!userStore.getters.isCurrentUserArtist(userStore.state)) {
-              next({ name: 'open-productions' })
-            } else {
-              next({ name: 'todos' })
-            }
-          }
+      const redirect = await auth.requireAuth(to, from)
+      if (redirect) return redirect
+
+      timezone.setTimezone()
+      lang.setLocale(userStore.state.user.locale)
+      sentry.setContext(peopleStore.state.organisation, userStore.state.user)
+
+      if (store.state.productions.openProductions.length === 0) {
+        try {
+          const ready = await init()
+          if (!ready) return false
+        } catch {
+          return { name: 'server-down' }
         }
-      })
+      } else {
+        store.commit('DATA_LOADING_END')
+      }
+
+      return userStore.getters.isCurrentUserArtist(userStore.state)
+        ? { name: 'todos' }
+        : { name: 'open-productions' }
     }
   },
 
@@ -171,40 +138,37 @@ export const routes = [
     path: '/',
     component: Main,
 
-    beforeEnter: (to, from, next) => {
-      auth.requireAuth(to, from, nextPath => {
-        if (nextPath) {
-          next(nextPath)
-        } else {
-          timezone.setTimezone()
-          lang.setLocale(userStore.state.user.locale)
-          sentry.setContext(
-            peopleStore.state.organisation,
-            userStore.state.user
-          )
-          const isProhibited =
-            !userStore.getters.isCurrentUserAdmin(userStore.state) &&
-            to &&
-            ADMIN_PAGES.includes(to.name)
-          if (taskTypeStore.state.taskTypes.length === 0) {
-            init(() => {
-              store.commit('DATA_LOADING_END')
-              if (isProhibited) {
-                next({ name: 'not-found' })
-              } else {
-                next()
-              }
-            })
-          } else {
-            store.commit('DATA_LOADING_END')
-            if (isProhibited) {
-              next({ name: 'server-down' })
-            } else {
-              next()
-            }
-          }
+    beforeEnter: async (to, from) => {
+      const redirect = await auth.requireAuth(to, from)
+      if (redirect) return redirect
+
+      timezone.setTimezone()
+      lang.setLocale(userStore.state.user.locale)
+      sentry.setContext(peopleStore.state.organisation, userStore.state.user)
+
+      const isSupervisorOrManager =
+        userStore.getters.isCurrentUserManager(userStore.state) ||
+        userStore.getters.isCurrentUserSupervisor(userStore.state)
+      const isProhibited =
+        (!userStore.getters.isCurrentUserAdmin(userStore.state) &&
+          to?.matched.some(record => record.meta.requiresAdmin)) ||
+        (!isSupervisorOrManager &&
+          to?.matched.some(record => record.meta.requiresSupervisorOrManager))
+
+      if (taskTypeStore.state.taskTypes.length === 0) {
+        try {
+          const ready = await init()
+          store.commit('DATA_LOADING_END')
+          if (!ready) return false
+        } catch {
+          store.commit('DATA_LOADING_END')
+          return { name: 'server-down' }
         }
-      })
+      } else {
+        store.commit('DATA_LOADING_END')
+      }
+
+      if (isProhibited) return { name: 'not-found' }
     },
 
     children: [
@@ -217,58 +181,68 @@ export const routes = [
       {
         path: 'asset-types',
         name: 'asset-types',
+        meta: { requiresAdmin: true },
         component: AssetTypes
       },
 
       {
         path: 'backgrounds',
         component: Backgrounds,
-        name: 'backgrounds'
+        name: 'backgrounds',
+        meta: { requiresAdmin: true }
       },
 
       {
         path: 'bots',
         component: Bots,
-        name: 'bots'
+        name: 'bots',
+        meta: { requiresAdmin: true }
       },
 
       {
         path: 'departments',
         name: 'departments',
+        meta: { requiresAdmin: true },
         component: Departments
       },
 
       {
         path: 'studios',
         name: 'studios',
+        meta: { requiresAdmin: true },
         component: Studios
       },
 
       {
         path: 'project-templates',
         name: 'project-templates',
+        meta: { requiresAdmin: true },
         component: ProjectTemplates
       },
       {
         path: 'project-templates/:template_id',
         name: 'project-template-settings',
+        meta: { requiresAdmin: true },
         component: ProjectTemplateSettings
       },
 
       {
         path: 'salary-scale',
         name: 'salary-scale',
+        meta: { requiresAdmin: true },
         component: SalaryScale
       },
 
       {
         name: 'custom-actions',
+        meta: { requiresAdmin: true },
         path: 'custom-actions',
         component: CustomActions
       },
 
       {
         name: 'status-automations',
+        meta: { requiresAdmin: true },
         path: 'status-automations',
         component: StatusAutomations
       },
@@ -324,7 +298,8 @@ export const routes = [
       {
         path: 'people',
         component: People,
-        name: 'people'
+        name: 'people',
+        meta: { requiresAdmin: true }
       },
 
       {
@@ -336,13 +311,15 @@ export const routes = [
       {
         path: '/main-schedule',
         component: MainSchedule,
-        name: 'main-schedule'
+        name: 'main-schedule',
+        meta: { requiresAdmin: true }
       },
 
       {
         path: '/team-schedule',
         component: TeamSchedule,
-        name: 'team-schedule'
+        name: 'team-schedule',
+        meta: { requiresSupervisorOrManager: true }
       },
 
       {
@@ -396,7 +373,8 @@ export const routes = [
       {
         path: '/logs',
         component: Logs,
-        name: 'logs'
+        name: 'logs',
+        meta: { requiresAdmin: true }
       },
 
       {
@@ -414,17 +392,20 @@ export const routes = [
       {
         path: 'settings',
         component: Settings,
-        name: 'settings'
+        name: 'settings',
+        meta: { requiresAdmin: true }
       },
 
       {
         name: 'task-types',
+        meta: { requiresAdmin: true },
         path: 'task-types',
         component: TaskTypes
       },
 
       {
         name: 'task-status',
+        meta: { requiresAdmin: true },
         path: 'task-status',
         component: TaskStatus
       },
@@ -443,7 +424,8 @@ export const routes = [
       {
         path: 'productions',
         component: Productions,
-        name: 'productions'
+        name: 'productions',
+        meta: { requiresAdmin: true }
       },
 
       {
@@ -461,7 +443,8 @@ export const routes = [
       {
         path: 'news-feed',
         component: ProductionNewsFeed,
-        name: 'newsfeed'
+        name: 'newsfeed',
+        meta: { requiresAdmin: true }
       },
 
       {
@@ -474,6 +457,12 @@ export const routes = [
         path: 'productions/:production_id/schedule',
         component: ProductionSchedule,
         name: 'schedule'
+      },
+
+      {
+        path: 'productions/:production_id/episodes/:episode_id/schedule',
+        component: ProductionSchedule,
+        name: 'episode-schedule'
       },
 
       {

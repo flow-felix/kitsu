@@ -131,6 +131,7 @@
           :is-replyable="false"
           :task-types="[]"
           :team="[]"
+          :url-prefix="'/api/shared/playlists/' + token"
           :revision="comment.revision || 1"
           :style="{ animationDelay: Math.min(index, 8) * 60 + 'ms' }"
           @edit-comment="onEditComment"
@@ -189,6 +190,7 @@ import { useI18n } from 'vue-i18n'
 import { useStore } from 'vuex'
 
 import { replaceTimeWithTimecode } from '@/lib/render'
+import { DEFAULT_FPS } from '@/lib/video'
 import stringHelpers from '@/lib/string'
 import playlistsApi from '@/store/api/playlists'
 import { LOAD_PEOPLE_END } from '@/store/mutation-types'
@@ -252,7 +254,9 @@ const modals = reactive({ edit: false, delete: false, attachment: false })
 // Computed
 
 const currentProduction = computed(() => store.getters.currentProduction)
-const fps = computed(() => parseFloat(currentProduction.value?.fps) || 25)
+const fps = computed(
+  () => parseFloat(currentProduction.value?.fps) || DEFAULT_FPS
+)
 
 const availableStatuses = computed(() =>
   taskStatuses.value.filter(status => status.is_client_allowed)
@@ -451,16 +455,14 @@ const confirmEditComment = async updatedComment => {
   const attachmentsToDelete = updatedComment.attachmentFilesToDelete || []
   const newAttachmentFiles = updatedComment.newAttachmentFiles || []
   try {
-    await Promise.all(
-      attachmentsToDelete.map(attachment =>
-        playlistsApi.deleteSharedPlaylistCommentAttachment(
-          props.token,
-          commentId,
-          attachment.id,
-          props.guestId
-        )
+    for (const attachment of attachmentsToDelete) {
+      await playlistsApi.deleteSharedPlaylistCommentAttachment(
+        props.token,
+        commentId,
+        attachment.id,
+        props.guestId
       )
-    )
+    }
     if (newAttachmentFiles.length > 0) {
       const formData = new FormData()
       formData.append('guest_id', props.guestId)

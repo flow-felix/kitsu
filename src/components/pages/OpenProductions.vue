@@ -1,55 +1,60 @@
 <template>
   <div class="open-productions page">
     <div class="social-contributions" v-if="isContributions">
-      <h1 class="subtitle has-text-centered">
-        {{ $t('intro.title') }}
-      </h1>
       <div class="flexrow">
-        <img
-          class="flexrow-item kitsu-with-body"
-          src="../../assets/illustrations/kitsu-band.png"
-        />
+        <div class="flexrow-item left-column">
+          <h1 class="subtitle">
+            {{ $t('intro.title') }}
+          </h1>
+          <img
+            class="kitsu-with-body"
+            src="../../assets/illustrations/kitsu-band.png"
+            alt=""
+          />
+        </div>
         <div class="filler">
-          <span class="close-contributions" @click="hideContributions">
+          <span
+            class="close-contributions"
+            role="button"
+            tabindex="0"
+            @click="hideContributions"
+            @keydown.enter.prevent="hideContributions"
+            @keydown.space.prevent="hideContributions"
+          >
             <x-icon :size="14" />
           </span>
           <p>
             {{ $t('intro.main') }}
           </p>
-          <ul>
-            <li>
-              {{ $t('intro.first') }}
-              <a href="https://github.com/cgwire/kitsu">GitHub</a>
-            </li>
-            <li>
-              {{ $t('intro.second') }}
-              <a href="https://x.com/cgwirekitsu">X</a>
-              {{ $t('main.or') }}
-              <a href="https://www.linkedin.com/company/cgwire/">LinkedIn</a>
-            </li>
-            <li>
-              {{ $t('intro.third') }}
-              <a href="https://discord.gg/VbCxtKN">Discord</a>
-            </li>
-            <li>
-              {{ $t('intro.four') }}
-              <a href="https://cgwire.canny.io">Canny</a>
-            </li>
-            <li>
-              {{ $t('intro.five') }}
-              <a href="https://liberapay.com/CGWire/donate">Liberapay</a>
-            </li>
-            <li>
-              {{ $t('intro.six') }}
-              <a href="https://cg-wire.com/pricing">offers</a>
-            </li>
-            <li>
-              {{ $t('intro.seven') }}
-            </li>
-          </ul>
-          <p>
-            {{ $t('intro.eight') }}
-          </p>
+          <div class="cta-list">
+            <a
+              class="cta cta-github"
+              href="https://github.com/cgwire/kitsu"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <star-icon :size="18" />
+              {{ $t('intro.star_github') }}
+            </a>
+            <a
+              class="cta cta-discord"
+              href="https://discord.gg/kitsu-community"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <message-circle-icon :size="18" />
+              {{ $t('intro.join_discord') }}
+            </a>
+            <a
+              class="cta cta-partner"
+              href="https://cg-wire.com/partners"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <handshake-icon :size="18" />
+              {{ $t('intro.join_partner') }}
+            </a>
+          </div>
         </div>
       </div>
     </div>
@@ -60,7 +65,7 @@
       class="flexrow open-productions-header"
       v-if="!isOpenProductionsLoading && openProductions.length > 0"
     >
-      <img class="logo" src="../../assets/kitsu.png" width="23" />
+      <img class="logo" src="../../assets/kitsu.png" width="23" alt="" />
       <h1 class="title filler">
         {{ $t('productions.home.title') }}
       </h1>
@@ -112,7 +117,7 @@
               <template v-if="!production.has_avatar">
                 {{ generateAvatar(production) }}
               </template>
-              <img :src="getThumbnailPath(production)" v-else />
+              <img :src="getThumbnailPath(production)" alt="" v-else />
             </div>
             <div class="production-name">
               {{ production.name }}
@@ -124,7 +129,7 @@
 
     <div class="has-text-centered welcome" v-else>
       <p class="kitsu-logo info">
-        <img src="../../assets/illustrations/empty_production.png" />
+        <img src="../../assets/illustrations/empty_production.png" alt="" />
       </p>
       <div v-if="isCurrentUserAdmin">
         <p class="has-text-centered info">
@@ -151,7 +156,12 @@
 </template>
 
 <script>
-import { XIcon } from 'lucide-vue-next'
+import {
+  HandshakeIcon,
+  MessageCircleIcon,
+  StarIcon,
+  XIcon
+} from 'lucide-vue-next'
 import { mapGetters } from 'vuex'
 
 import { buildNameIndex } from '@/lib/indexing'
@@ -165,8 +175,11 @@ export default {
   name: 'open-productions',
 
   components: {
+    HandshakeIcon,
+    MessageCircleIcon,
     SearchField,
     Spinner,
+    StarIcon,
     XIcon
   },
 
@@ -481,21 +494,86 @@ a.secondary:hover {
     color: $green;
   }
 
-  ul {
-    margin-bottom: 1em;
-    margin-top: 1em;
+  .left-column {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+    margin-right: 2em;
+
+    .subtitle {
+      margin-bottom: 0;
+      text-align: center;
+    }
+  }
+
+  .filler {
+    padding: 1em 2em;
+  }
+
+  .cta-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8em;
+    margin-top: 1.5em;
+    max-width: 400px;
+  }
+
+  .cta {
+    align-items: center;
+    background: var(--background-alt-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    display: flex;
+    font-weight: 500;
+    gap: 0.8em;
+    padding: 0.8em 1.2em;
+    transition: all 0.2s ease-in-out;
+
+    svg {
+      color: var(--accent);
+    }
+
+    &:hover {
+      border-color: var(--accent);
+      transform: translateX(4px);
+    }
+  }
+
+  .cta-github {
+    --accent: #{$yellow};
+  }
+
+  .cta-discord {
+    --accent: #{$blue};
+  }
+
+  .cta-partner {
+    --accent: #{$green};
   }
 
   .close-contributions {
+    align-items: center;
+    border-radius: 50%;
+    color: var(--text-alt);
     cursor: pointer;
+    display: flex;
+    height: 28px;
+    justify-content: center;
     position: absolute;
-    right: 30px;
+    right: 15px;
     top: 15px;
-    width: 2px;
+    transition: all 0.2s ease-in-out;
+    width: 28px;
+
+    &:hover {
+      background: var(--background-alt);
+      color: var(--text);
+    }
   }
 
   .kitsu-with-body {
-    margin-right: 2em;
     width: 320px;
   }
 }

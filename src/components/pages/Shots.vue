@@ -243,6 +243,7 @@
       :active="modals.isCreateTasksDisplayed"
       :is-loading="loading.creatingTasks"
       :is-loading-stay="loading.creatingTasksStay"
+      :is-loading-all="loading.creatingAllTasks"
       :is-error="errors.creatingTasks"
       :title="$t('tasks.create_tasks_shot')"
       :text="$t('tasks.create_tasks_shot_explanation')"
@@ -250,6 +251,7 @@
       @cancel="hideCreateTasksModal"
       @confirm="confirmCreateTasks"
       @confirm-and-stay="confirmCreateTasksAndStay"
+      @confirm-all-missing="confirmCreateAllMissingTasks"
     />
 
     <add-metadata-modal
@@ -372,6 +374,7 @@ export default {
       displaySettings: {
         bigThumbnails: false,
         contactSheetMode: false,
+        fullTaskTypeNames: false,
         inOutTimecode: false,
         showAssignations: true,
         showInfos: true
@@ -421,6 +424,7 @@ export default {
         addThumbnails: false,
         creatingTasks: false,
         creatingTasksStay: false,
+        creatingAllTasks: false,
         deleteAllTasks: false,
         deleteMetadata: false,
         edit: false,
@@ -453,7 +457,7 @@ export default {
     const finalize = () => {
       this.$nextTick(() => {
         // Needed to be sure the current production is set
-        this.loadShots(() => {
+        this.loadShots().then(() => {
           this.initialLoading = false
         })
       })
@@ -557,15 +561,18 @@ export default {
     },
 
     filteredShots() {
+      // Build the lookup from the full shot cache, not the filtered display
+      // list, so the import creation check sees every shot.
+      // The cache Map is not reactive: depend on displayedShots (updated
+      // by the same mutations) to invalidate this computed.
+      this.displayedShots // eslint-disable-line no-unused-expressions
       const shots = {}
-      this.displayedShotsBySequence.forEach(sequence => {
-        sequence.forEach(item => {
-          let shotKey = `${item.sequence_name}${item.name}`
-          if (this.isTVShow) {
-            shotKey = item.episode_name + shotKey
-          }
-          shots[shotKey] = true
-        })
+      this.shotMap.forEach(item => {
+        let shotKey = `${item.sequence_name}${item.name}`
+        if (this.isTVShow) {
+          shotKey = item.episode_name + shotKey
+        }
+        shots[shotKey] = true
       })
       return shots
     },
@@ -632,7 +639,7 @@ export default {
         this.$refs['shot-search-field']?.setValue('')
         this.$store.commit('SET_SHOT_LIST_SCROLL_POSITION', 0)
         this.initialLoading = true
-        this.loadShots(() => {
+        this.loadShots().then(() => {
           this.initialLoading = false
           this.applySearchFromUrl()
         })
@@ -715,8 +722,7 @@ export default {
 
     reset() {
       this.initialLoading = true
-      this.loadShots(err => {
-        if (err) console.error(err)
+      this.loadShots().then(() => {
         this.initialLoading = false
       })
     },
@@ -869,7 +875,7 @@ export default {
           headers.push(this.$t('shots.fields.max_retakes'))
         }
         this.shotValidationColumns.forEach(taskTypeId => {
-          headers.push(this.taskTypeMap.get(taskTypeId).name)
+          headers.push(this.taskTypeMap.get(taskTypeId)?.name || '')
           headers.push('Assignations')
         })
         csv.buildCsvFile(name, [headers].concat(shotLines))

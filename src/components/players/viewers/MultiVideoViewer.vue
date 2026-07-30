@@ -54,7 +54,7 @@ import {
 import { useStore } from 'vuex'
 
 import { swallowBrowserZoom } from '@/lib/players/wheel'
-import { floorToFrame, roundToFrame } from '@/lib/video'
+import { DEFAULT_FPS, floorToFrame, roundToFrame } from '@/lib/video'
 import {
   createFrameRenderer,
   supportsVideoFrameCallback
@@ -106,6 +106,11 @@ const props = defineProps({
     type: String,
     default: 'main'
   },
+  nextHandleIn: {
+    // Handle-in frame of the next entity, used to pre-seek its decoder
+    type: Number,
+    default: 0
+  },
   panzoom: {
     type: Boolean,
     default: false
@@ -153,6 +158,13 @@ let renderLoopHandle = null
 let renderLoopIsRvfc = false
 let renderLoopPlayer = null
 let renderLoopGeneration = 0
+// Target of a seek issued while playing — the render loop skips stale
+// presentations until the target frame lands (same guard as VideoViewer).
+let seekGuardTarget = null
+// One play-next per trim end: entity switches to non-movie previews are
+// asynchronous, and extra presentations past the handle-out would emit
+// again and skip entities.
+let trimEndFired = false
 let lastEmittedFrame = null
 let rate = 1
 let silent = false
@@ -173,7 +185,7 @@ const currentProduction = computed(() => store.getters.currentProduction)
 // as the playlist advances.
 const fps = computed(() => {
   const entityFps = parseFloat(props.entities[currentIndex.value]?.fps)
-  return entityFps || parseFloat(currentProduction.value?.fps) || 25
+  return entityFps || parseFloat(currentProduction.value?.fps) || DEFAULT_FPS
 })
 const frameDuration = computed(
   () => Math.round((1 / fps.value) * 10000) / 10000
@@ -234,8 +246,42 @@ const startRenderLoop = () => {
   const generation = renderLoopGeneration
   if (supportsVideoFrameCallback()) {
     renderLoopIsRvfc = true
-    const tick = () => {
+    const tick = (now, metadata) => {
       if (renderLoopGeneration !== generation) return
+      // Skip presentations far from an in-flight seek target (loop on
+      // handle-in, handle-in jump): frames queued behind the seek point
+      // keep presenting for a tick or two and painting them overflows
+      // past the trim before the seek lands.
+      if (
+        seekGuardTarget !== null &&
+        Math.abs(metadata.mediaTime - seekGuardTarget) > 2 * frameDuration.value
+      ) {
+        renderLoopHandle = player.requestVideoFrameCallback(tick)
+        return
+      }
+      seekGuardTarget = null
+      // Enforce the trim end at the paint decision: the parent detects
+      // it through the time channel, which lags the presented frame by
+      // one, so it always paints the first excluded frame. Here the
+      // presented frame is known exactly — loop or chain before painting.
+      if (
+        isPlaying.value &&
+        props.handleOut > 0 &&
+        Math.round(metadata.mediaTime * fps.value) >= props.handleOut
+      ) {
+        if (props.isRepeating) {
+          const target = props.handleIn / fps.value
+          seekGuardTarget = target
+          player.currentTime = target
+          emit('repeat')
+        } else if (!trimEndFired) {
+          trimEndFired = true
+          emit('play-next')
+        }
+        renderLoopHandle = player.requestVideoFrameCallback(tick)
+        return
+      }
+      trimEndFired = false
       renderer?.drawFrame(player)
       if (isPlaying.value && props.name === 'main') {
         updateTime(player.currentTime)
@@ -248,6 +294,13 @@ const startRenderLoop = () => {
     let lastDrawnTime = -1
     const tick = () => {
       if (renderLoopGeneration !== generation) return
+      // Mid-seek (no rVFC, e.g. Firefox): currentTime already reads the
+      // target while the decoder still holds the old position — drawing
+      // would paint stale frames past the trim and emit stale times.
+      if (player.seeking) {
+        renderLoopHandle = requestAnimationFrame(tick)
+        return
+      }
       if (player.currentTime !== lastDrawnTime) {
         lastDrawnTime = player.currentTime
         renderer?.drawFrame(player)
@@ -304,27 +357,22 @@ const emitLoadedEvent = event => {
   emit('metadata-loaded', event)
 }
 
-const getMoviePath = entity => {
-  if (entity.preview_file_extension === 'mp4') {
-    let previewId
-    if (
-      props.currentPreviewIndex === 0 ||
-      !entity.preview_file_previews ||
-      props.currentPreviewIndex > entity.preview_file_previews.length
-    ) {
-      previewId = entity.preview_file_id
-    } else {
-      previewId = entity.preview_file_previews[props.currentPreviewIndex - 1].id
-    }
-    const base = props.urlPrefix || '/api'
-    // Originals for shared links or HD mode; the lighter low variant otherwise
-    if (props.urlPrefix || props.isHd) {
-      return `${base}/movies/originals/preview-files/${previewId}.mp4`
-    } else {
-      return `${base}/movies/low/preview-files/${previewId}.mp4`
-    }
+const getMoviePath = (entity, previewIndex = 0) => {
+  // Check the extension on the element actually selected (main preview or
+  // one of the additional previews): a revision whose main element is a
+  // picture can still carry video elements, and vice versa.
+  const subPreviews = entity.preview_file_previews || []
+  const preview =
+    previewIndex > 0 && previewIndex <= subPreviews.length
+      ? subPreviews[previewIndex - 1]
+      : { id: entity.preview_file_id, extension: entity.preview_file_extension }
+  if (preview.extension !== 'mp4') return ''
+  const base = props.urlPrefix || '/api'
+  // Originals for shared links or HD mode; the lighter low variant otherwise
+  if (props.urlPrefix || props.isHd) {
+    return `${base}/movies/originals/preview-files/${preview.id}.mp4`
   } else {
-    return ''
+    return `${base}/movies/low/preview-files/${preview.id}.mp4`
   }
 }
 
@@ -406,6 +454,19 @@ const reloadCurrentEntity = (silentReload = false) => {
   loadEntity(currentIndex.value, currentPlayer.value.currentTime, silentReload)
 }
 
+// Park the preloaded decoder on the next entity's handle-in frame so its
+// first frame (slate) is never the one painted when players switch.
+const preseekNextPlayer = () => {
+  const player = nextPlayer.value
+  if (!player || !player.getAttribute('src') || props.nextHandleIn <= 0) return
+  const nextEntity = props.entities[getNextIndex(currentIndex.value)]
+  const nextFps =
+    parseFloat(nextEntity?.fps) ||
+    parseFloat(currentProduction.value?.fps) ||
+    DEFAULT_FPS
+  player.currentTime = props.nextHandleIn / nextFps
+}
+
 const loadEntity = (index = 0, currentTime = 0, silentLoad = false) => {
   if (index < props.entities.length) {
     const nextIndex = getNextIndex(index)
@@ -413,18 +474,35 @@ const loadEntity = (index = 0, currentTime = 0, silentLoad = false) => {
     const nextEntity = props.entities[nextIndex]
 
     currentIndex.value = index
-    currentPlayer.value = player1Ref.value
-    nextPlayer.value = player2Ref.value
+    // Reuse the decoder that already holds the target movie (usually the
+    // one that preloaded the next entity): swapping keeps its buffer
+    // instead of re-downloading on every manual navigation.
+    const moviePath = getMoviePath(entity, props.currentPreviewIndex)
+    const preloadedPlayer = [player1Ref.value, player2Ref.value].find(
+      player => moviePath && player?.src.endsWith(moviePath)
+    )
+    currentPlayer.value = preloadedPlayer || player1Ref.value
+    nextPlayer.value =
+      currentPlayer.value === player1Ref.value
+        ? player2Ref.value
+        : player1Ref.value
     currentPlayer.value.removeEventListener('loadedmetadata', updateMaxDuration)
     currentPlayer.value.addEventListener('loadedmetadata', updateMaxDuration)
 
-    if (entity.preview_file_extension === 'mp4' && currentPlayer.value) {
-      currentPlayer.value.src = getMoviePath(entity)
+    if (moviePath) {
+      if (!currentPlayer.value.src.endsWith(moviePath)) {
+        currentPlayer.value.src = moviePath
+      }
     } else if (currentPlayer.value) {
       currentPlayer.value.src = ''
     }
-    if (nextEntity?.preview_file_extension === 'mp4' && nextPlayer.value) {
-      nextPlayer.value.src = getMoviePath(nextEntity)
+    // The next entity always starts on its main preview: preload index 0.
+    const nextMoviePath = nextEntity ? getMoviePath(nextEntity) : ''
+    if (nextMoviePath) {
+      if (!nextPlayer.value.src.endsWith(nextMoviePath)) {
+        nextPlayer.value.src = nextMoviePath
+      }
+      preseekNextPlayer()
     } else if (nextPlayer.value) {
       nextPlayer.value.src = ''
     }
@@ -438,6 +516,11 @@ const loadEntity = (index = 0, currentTime = 0, silentLoad = false) => {
       )
     }
     startRenderLoop()
+    // A reused decoder fires no loadedmetadata event: refresh the
+    // duration and renderer dimensions from what it already knows.
+    if (currentPlayer.value.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      updateMaxDuration()
+    }
     _setCurrentTime(currentTime)
     if (!silentLoad) {
       emit('entity-change', currentIndex.value)
@@ -448,6 +531,7 @@ const loadEntity = (index = 0, currentTime = 0, silentLoad = false) => {
 // Playing
 
 const pause = () => {
+  seekGuardTarget = null
   if (currentPlayer.value) {
     currentPlayer.value.pause()
     currentPlayer.value.currentTime = roundToFrame(
@@ -470,7 +554,7 @@ const play = () => {
     entity = props.entities[currentIndex.value]
     if (entity.preview_file_id) {
       if (currentPlayer.value) {
-        currentPlayer.value.play()
+        currentPlayer.value.play()?.catch(() => {})
       }
       isPlaying.value = true
     }
@@ -484,7 +568,7 @@ const playNext = handleIn => {
     currentPlayer.value.currentTime = props.handleIn
       ? props.handleIn * frameDuration.value
       : frameDuration.value
-    currentPlayer.value.play()
+    currentPlayer.value.play()?.catch(() => {})
     emit('repeat')
   } else {
     const nextIndex = getNextIndex(currentIndex.value)
@@ -495,7 +579,7 @@ const playNext = handleIn => {
       nextPlayer.value.currentTime = handleIn
         ? handleIn * frameDuration.value
         : 0
-      nextPlayer.value.play()
+      nextPlayer.value.play()?.catch(() => {})
     }
 
     switchPlayers()
@@ -517,6 +601,7 @@ const getCurrentTimeRaw = () =>
 
 const setCurrentTimeRaw = currentTime => {
   if (currentPlayer.value) {
+    if (isPlaying.value) seekGuardTarget = currentTime
     currentPlayer.value.currentTime = currentTime
   }
 }
@@ -552,6 +637,7 @@ const runSetCurrentTime = currentTime => {
   if (currentPlayer.value && currentPlayer.value.currentTime !== currentTime) {
     isSeeking = true
     try {
+      if (isPlaying.value) seekGuardTarget = currentTime
       // tweaks needed because the html video player is messy with frames
       currentPlayer.value.currentTime = currentTime + 0.001
       onTimeUpdate()
@@ -580,6 +666,7 @@ const switchPlayers = () => {
   nextPlayer.value = tmpPlayer
   if (nextEntity) {
     nextPlayer.value.src = getMoviePath(nextEntity)
+    preseekNextPlayer()
   }
   resetHeight()
   setSpeed(rate)
@@ -687,10 +774,24 @@ const unbindLoadingHandlers = player => {
 watch(
   () => props.currentPreviewIndex,
   () => {
-    if (!isPlaying.value) {
-      setCurrentTimeRaw(0)
-      reloadCurrentEntity(true)
+    // Reload even mid-playback: keeping the old source makes the "sub"
+    // resume the previous video at its old position and stop at that
+    // video's end. Resume on the new source when it was playing.
+    const wasPlaying = isPlaying.value
+    setCurrentTimeRaw(0)
+    reloadCurrentEntity(true)
+    if (wasPlaying) {
+      currentPlayer.value?.play()?.catch(() => {})
     }
+  }
+)
+
+// At switch time the prop still holds the previous "next" value: re-apply
+// the pre-seek once the parent pushes the new next entity's handle-in.
+watch(
+  () => props.nextHandleIn,
+  () => {
+    preseekNextPlayer()
   }
 )
 
