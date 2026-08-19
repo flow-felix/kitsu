@@ -73,7 +73,7 @@
               />
               <button-simple
                 class="flexrow-item"
-                :text="$t('shots.manage')"
+                :text="$t('shots.new_shots')"
                 icon="plus"
                 @click="showManageShots"
               />
@@ -1053,10 +1053,6 @@ export default {
 }
 
 .level {
-  align-items: flex-start;
-}
-
-.flexcolumn {
   align-items: flex-start;
 }
 

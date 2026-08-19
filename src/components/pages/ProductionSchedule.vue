@@ -513,10 +513,9 @@
   <confirm-modal
     active
     :text="
-      $t(
-        'schedule.confirm_move_children',
-        pendingParentChange ? pendingParentChange.affected.length : 0
-      )
+      $t('schedule.confirm_move_children', {
+        count: pendingParentChange ? pendingParentChange.affected.length : 0
+      })
     "
     @cancel="cancelChildMove"
     @confirm="confirmChildMove"
@@ -1686,7 +1685,7 @@ export default {
           return true
         } else {
           return (
-            taskType.department_id &&
+            taskType?.department_id &&
             this.user.departments.includes(taskType.department_id)
           )
         }

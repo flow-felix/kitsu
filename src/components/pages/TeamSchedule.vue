@@ -167,7 +167,7 @@
                     <div class="flexrow">
                       <em v-if="task.man_days">
                         {{ task.man_days }}
-                        {{ $t('main.man_days', task.man_days) }}
+                        {{ $t('main.man_days', { count: task.man_days }) }}
                       </em>
                       <em v-else>
                         {{ $t('main.no_estimation') }}
@@ -786,6 +786,20 @@ export default {
 
       if (JSON.stringify(query) !== JSON.stringify(this.$route.query)) {
         this.$router.push({ query })
+      }
+    }
+  },
+
+  socket: {
+    events: {
+      // The unassigned tasks are enriched copies, out of reach of the store
+      // mutations, so refresh their thumbnail here.
+      'preview-file:set-main'(eventData) {
+        this.unassignedTasks.forEach(task => {
+          if (task.entity_id === eventData.entity_id) {
+            task.entity_preview_file_id = eventData.preview_file_id
+          }
+        })
       }
     }
   },
