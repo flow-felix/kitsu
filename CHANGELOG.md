@@ -4,6 +4,53 @@ Production deploy history for the Flow fork of Kitsu. Newest first.
 Each entry records the deployed commit, the production backup taken at deploy
 time, and the exact rollback command.
 
+## 2026-08-19 — Upstream sync to CGWire 1.0.56
+
+- **Deployed commit:** `b89aa8fd5653cb454fbd5939a89cebbb18fd4394` (`flow/main`)
+- **Tag:** `kitsu-upgrade-20260819-141752`
+- **Version:** `1.0.55` → **`1.0.56`**
+- **Production backup:** `/opt/kitsu/releases/upgrade-20260819-141752-PREVIOUS` (42M)
+- **Synced to the release tag, not upstream `main`.** At sync time upstream `main`
+  was 85 commits ahead of `v1.0.56`, carrying an in-flight **per-project roles**
+  feature (effective-role gating across production pages, task/entity/metadata
+  actions, team UI) that spans both Kitsu and Zou and is not yet in a tagged
+  release on either side. `main` was fast-forwarded to `v1.0.56` only, keeping the
+  fork on released code and the two repos a matched pair. Revisit once CGWire tags
+  the roles work on both projects.
+- **Summary:** Upstream 1.0.56 is a small release (67 commits): player/annotation
+  fixes (undo/redo correctness, Ctrl+Z no longer closes the preview, WebGL2-missing
+  message for 3D previews), reworked activity/login log filters with the login-logs
+  tab hidden from non-admins, empty-list states extracted into a widget with the
+  create button hidden from non-managers, an inactive-account login warning, and an
+  i18n pluralisation sweep.
+- **Flow `timesheet-orphan-hours` preserved.** Upstream touched all three carrier
+  files again (`TimesheetList.vue` ×1, `Todos.vue` ×2, `en.js` ×19) and all three
+  auto-merged with no conflict. Verified afterwards: the `orphanIds` block in
+  `Todos.vue` (3 references, same count as the original commit) and the
+  `timesheets.unassigned_tasks` subtitle in `TimesheetList.vue`. Upstream's separate
+  `task.unassigned_tasks` key remains a different namespace — still do not
+  "deduplicate" them.
+- **Only conflict was `CLAUDE.md`** (upstream ships its own dev guide), resolved by
+  keeping the Flow fork-workflow doc — same resolution as the 1.0.48 and 1.0.55
+  syncs. Upstream's version stays readable via `git show main:CLAUDE.md`.
+- **Build:** Node **v22.23.2** / npm 10.9.8 via a throwaway toolchain (system Node
+  is v20; repo requires ≥22.22.2 and npm ≥10). `npm ci && npm run build` clean —
+  only the pre-existing chunk-size advisory and upstream dependency deprecation
+  warnings.
+- **Tests:** **1334/1334 pass across 123 files**, `npm run lint` clean. Note this is
+  now a *full* pass: run under `TZ=Europe/Paris` per the standing note in
+  `CLAUDE.md` §6, the previously-failing `tests/unit/lib/time.spec.js` passes.
+- **Verified:** served `index.html` references the freshly built
+  `assets/index-VhIDjQ14.js`, that asset returns HTTP 200 over https, and
+  `https://kitsu.flowanimation.com` returns HTTP/2 200.
+- **Scope:** Frontend only. Deployed after the Zou 1.0.62 → 1.0.64 bump the same day
+  (kept as a matched pair — Kitsu 1.0.56's reworked log screens depend on Zou
+  1.0.63's server-side log route filtering, so the backend was restarted first).
+- **Rollback:**
+  ```bash
+  sudo bash -c 'rsync -a --delete /opt/kitsu/releases/upgrade-20260819-141752-PREVIOUS/ /opt/kitsu/dist/ && chown -R zou:zou /opt/kitsu/dist'
+  ```
+
 ## 2026-07-30 — Upstream sync to CGWire 1.0.55
 
 - **Deployed commit:** `b72a7365218aeabcbbbd82194d52250c785fbb1b` (`flow/main`)

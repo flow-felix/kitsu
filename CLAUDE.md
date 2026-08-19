@@ -38,10 +38,12 @@ Each Flow change must be a discrete `flow/<feature>` branch so it can be reverte
 - **`timesheet-orphan-hours`** — read-only "Other logged tasks" section so artists
   see hours logged on tasks they're no longer assigned to (`Todos.vue`,
   `TimesheetList.vue`, `en.js`). **Committed** on `flow/main` (branch
-  `flow/timesheet-orphan-hours`, deployed 2026-05-27); survived the 1.0.48 upstream
-  merge on 2026-07-01 and the 1.0.55 merge on 2026-07-30. Risk: medium (edits
-  upstream files — upstream has touched all three in each of the last two syncs,
-  so re-verify the hunks after every merge).
+  `flow/timesheet-orphan-hours`, deployed 2026-05-27); survived the 1.0.48 merge
+  on 2026-07-01, the 1.0.55 merge on 2026-07-30 and the 1.0.56 merge on 2026-08-19.
+  Risk: medium (edits upstream files — upstream has touched all three in each of the
+  last three syncs, so re-verify the hunks after every merge). Quick check: the
+  `orphanIds` block in `Todos.vue` (3 references) and the
+  `timesheets.unassigned_tasks` subtitle in `TimesheetList.vue`.
   - Note: upstream added its own `task.unassigned_tasks` locale key. Flow's key is
     `timesheets.unassigned_tasks` — different namespace, no collision. Don't
     "deduplicate" them.
@@ -63,12 +65,14 @@ There is **no systemd unit** for the frontend — it is static files served by n
 > with it fails/produces a bad bundle. Use a Node 22 without touching the system:
 > download `node-v22.x-linux-x64` to a temp dir and prefix `PATH` for the build
 > only (`export PATH=/path/to/node-v22.../bin:$PATH`), or use nvm/fnm if installed.
-> Both the 2026-07-01 (1.0.48) and 2026-07-30 (1.0.55) builds used a throwaway
-> Node v22.23.1 this way.
+> The 2026-07-01 (1.0.48) and 2026-07-30 (1.0.55) builds used a throwaway Node
+> v22.23.1 this way; the 2026-08-19 (1.0.56) build used v22.23.2. `package.json`
+> also requires **npm ≥ 10** — the bundled npm 10.9.8 satisfies it.
 >
 > **Unit tests:** `tests/unit/lib/time.spec.js` has an upstream test that hardcodes
 > a Europe/Paris assumption and fails on this box (TZ `America/New_York`). Run
 > `TZ=Europe/Paris npm run test:unit` to get a clean pass. Not a Flow regression.
+> On 1.0.56 that yields a full **1334/1334 across 123 files**.
 
 ```bash
 cd /home/felix-eyal/flow-dev/Kitsu-Mods/kitsu
@@ -107,9 +111,14 @@ git checkout <good-tag> && npm ci && npm run build && (deploy as in §7)
 ```
 
 ## 9. Sync upstream safely
+> **Fast-forward `main` to a release tag, not `upstream/main`.** Upstream `main`
+> carries unreleased work — at the 2026-08-19 sync it was 85 commits past `v1.0.56`
+> with an untagged per-project-roles feature that pairs with a matching Zou change.
+> Taking `upstream/main` would half-deploy that across the two forks.
+
 ```bash
-git fetch upstream
-git checkout main && git merge --ff-only upstream/main && git push origin main
+git fetch upstream --tags
+git checkout main && git merge --ff-only v<x.y.z> && git push origin main
 git checkout flow/main && git merge main         # resolve conflicts here, never on main
 # build + full test checklist before deploying
 ```
